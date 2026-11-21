@@ -302,11 +302,12 @@ namespace KDS.PRE.Vistas
             if (acceso.ShowDialog() != true || acceso.DuenoAutenticado == null)
                 return;
 
-            var admin = new VistaAdminPlatos(acceso.DuenoAutenticado) { Owner = ventana };
+            var admin = new VistaBaseDatos(acceso.DuenoAutenticado) { Owner = ventana };
             admin.ShowDialog();
 
-            if (admin.HuboCambios)
+            if (admin.HuboCambiosEnPlatos)
                 CargarPlatosDesdeBD();
+            CargarSolicitudesClientes();
         }
 
         private void BtnAbrirCocina_Click(object sender, RoutedEventArgs e)

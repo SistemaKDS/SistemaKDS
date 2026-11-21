@@ -190,14 +190,20 @@ namespace KDS.PRE.Portal
                 .ToList();
 
             var menu = pedidoBll.ObtenerMenu();
-            var r = await asistente.ResponderAsync(mensaje, historial, menu, mesa);
+            var carrito = (datos.Carrito ?? new())
+                .OfType<ItemSolicitud>()
+                .Where(c => c.Cantidad > 0)
+                .GroupBy(c => c.IdPlato)
+                .ToDictionary(g => g.Key, g => Math.Min(20, g.Sum(c => c.Cantidad)));
+            var r = await asistente.ResponderAsync(mensaje, historial, menu, mesa, carrito);
 
             await ResponderJson(ctx, 200, new
             {
                 respuesta = r.Respuesta,
                 nota = r.Nota,
                 fuente = r.Fuente,
-                sugeridos = r.Sugeridos.Select(p => new { id = p.IdPlato, nombre = p.Nombre, precio = p.Precio })
+                sugeridos = r.Sugeridos.Select(p => new { id = p.IdPlato, nombre = p.Nombre, precio = p.Precio }),
+                pedido = r.Pedido?.Select(c => new { id = c.Key, cantidad = c.Value })
             });
         }
 
@@ -348,6 +354,7 @@ namespace KDS.PRE.Portal
             public string? Mensaje { get; set; }
             public int Mesa { get; set; }
             public List<ItemHistorial?>? Historial { get; set; }
+            public List<ItemSolicitud?>? Carrito { get; set; }
         }
 
         private class ItemHistorial

@@ -1,0 +1,276 @@
+<Window x:Class="KDS.PRE.Vistas.VistaBaseDatos"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="KDS — Base de datos" Icon="/Assets/logo-kdss.png"
+        Width="1180" Height="740" MinWidth="900" MinHeight="560"
+        WindowStartupLocation="CenterOwner" Background="#080808">
+
+    <Window.Resources>
+        <Style TargetType="{x:Type DataGrid}">
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="SelectionUnit" Value="FullRow"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="CanUserDeleteRows" Value="False"/>
+            <Setter Property="CanUserResizeRows" Value="False"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#262626"/>
+            <Setter Property="Background" Value="#101010"/>
+            <Setter Property="RowBackground" Value="#151515"/>
+            <Setter Property="AlternatingRowBackground" Value="#1A1A1A"/>
+            <Setter Property="Foreground" Value="#EEEEEE"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="RowHeight" Value="32"/>
+        </Style>
+        <Style TargetType="{x:Type DataGridColumnHeader}">
+            <Setter Property="Background" Value="#202020"/>
+            <Setter Property="Foreground" Value="#F5A623"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="BorderBrush" Value="#333333"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+        </Style>
+        <Style TargetType="{x:Type DataGridCell}">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type DataGridCell}">
+                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#3A2B16"/>
+                    <Setter Property="Foreground" Value="White"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="{x:Type TabItem}">
+            <Setter Property="Foreground" Value="#BBBBBB"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabItem}">
+                        <Border x:Name="Borde" Background="#1C1C1C" BorderBrush="#333333" BorderThickness="1"
+                                CornerRadius="8" Padding="18,8" Margin="0,0,8,0">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Borde" Property="Background" Value="#F5A623"/>
+                                <Setter TargetName="Borde" Property="BorderBrush" Value="#F5A623"/>
+                                <Setter Property="Foreground" Value="#111111"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="Panel" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="#101010"/>
+            <Setter Property="BorderBrush" Value="#333333"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock x:Name="TextoDueno" Text="DUEÑO" Foreground="#AAAAAA" FontSize="11" FontWeight="Bold"/>
+                <TextBlock Text="Base de datos" Foreground="White" FontSize="26" FontWeight="SemiBold" Margin="0,6,0,0"/>
+                <TextBlock Text="Aquí ves y cambias todo lo que está guardado en bd_kds: pedidos (también los que llegan del menú web), productos de cada pedido y usuarios."
+                           Foreground="#888888" FontSize="12" Margin="0,5,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                <Button Content="PLATOS DEL MENÚ" Click="BtnPlatos_Click" Style="{StaticResource Boton}"
+                        Background="#F5A623" BorderBrush="#F5A623" Foreground="#111111" Padding="16,0" Margin="0,0,10,0"/>
+                <Button Content="ACTUALIZAR" Click="BtnActualizar_Click" Style="{StaticResource Boton}" Padding="16,0"/>
+            </StackPanel>
+        </Grid>
+
+        <TabControl x:Name="Pestanas" Grid.Row="1" Background="Transparent" BorderThickness="0" Padding="0,12,0,0">
+            <TabItem Header="Pedidos">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="340"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="MOSTRAR" Style="{StaticResource Etiqueta}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="CmbFiltroEstado" Width="170" Height="30" VerticalContentAlignment="Center"
+                                      SelectionChanged="CmbFiltroEstado_SelectionChanged"/>
+                            <TextBlock x:Name="TextoCantidadPedidos" Foreground="#888888" FontSize="12"
+                                       VerticalAlignment="Center" Margin="14,0,0,0"/>
+                        </StackPanel>
+                        <Border Grid.Row="1" BorderBrush="#333333" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+                            <DataGrid x:Name="GrillaPedidos" SelectionChanged="GrillaPedidos_SelectionChanged">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="#" Binding="{Binding IdPedido}" Width="60"/>
+                                    <DataGridTextColumn Header="MESA" Binding="{Binding NumeroMesa}" Width="60"/>
+                                    <DataGridTextColumn Header="FECHA" Binding="{Binding FechaHora, StringFormat='dd/MM HH:mm'}" Width="100"/>
+                                    <DataGridTextColumn Header="ESTADO" Binding="{Binding Estado}" Width="100"/>
+                                    <DataGridTextColumn Header="PRODUCTOS" Binding="{Binding Productos}" Width="*"/>
+                                    <DataGridTextColumn Header="TOTAL" Binding="{Binding Total, StringFormat='$ {0:N0}', ConverterCulture=es-CO}" Width="100"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Column="2" Style="{StaticResource Panel}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock x:Name="TituloPedido" Text="SELECCIONA UN PEDIDO" Foreground="White" FontSize="15" FontWeight="Bold"/>
+
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="90"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="MESA" Style="{StaticResource Etiqueta}"/>
+                                        <TextBox x:Name="TxtMesa" Style="{StaticResource Campo}" MaxLength="2"
+                                                 PreviewTextInput="SoloNumeros_PreviewTextInput"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="ESTADO" Style="{StaticResource Etiqueta}"/>
+                                        <ComboBox x:Name="CmbEstado" Height="34" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="BtnGuardarPedido" Content="GUARDAR PEDIDO" Click="BtnGuardarPedido_Click"
+                                            Style="{StaticResource Boton}" IsEnabled="False"/>
+                                    <Button x:Name="BtnEliminarPedido" Grid.Column="2" Content="ELIMINAR PEDIDO" Click="BtnEliminarPedido_Click"
+                                            Style="{StaticResource Boton}" Foreground="#FF6464" IsEnabled="False"/>
+                                </Grid>
+
+                                <TextBlock Text="PRODUCTOS DEL PEDIDO" Style="{StaticResource Etiqueta}" Margin="0,18,0,6"/>
+                                <Border BorderBrush="#333333" BorderThickness="1" CornerRadius="8" ClipToBounds="True" Height="150">
+                                    <DataGrid x:Name="GrillaDetalle" SelectionChanged="GrillaDetalle_SelectionChanged" FontSize="12" RowHeight="28">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="CANT." Binding="{Binding Cantidad}" Width="55"/>
+                                            <DataGridTextColumn Header="PLATO" Binding="{Binding NombrePlato}" Width="*"/>
+                                            <DataGridTextColumn Header="NOTA" Binding="{Binding NotasEspeciales}" Width="90"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </Border>
+
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="70"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="CANTIDAD" Style="{StaticResource Etiqueta}"/>
+                                        <TextBox x:Name="TxtCantidad" Style="{StaticResource Campo}" MaxLength="2" Text="1"
+                                                 PreviewTextInput="SoloNumeros_PreviewTextInput"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="NOTA PARA COCINA" Style="{StaticResource Etiqueta}"/>
+                                        <TextBox x:Name="TxtNota" Style="{StaticResource Campo}" MaxLength="200"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="PLATO (PARA AGREGAR)" Style="{StaticResource Etiqueta}"/>
+                                <ComboBox x:Name="CmbPlato" Height="34" DisplayMemberPath="Nombre" VerticalContentAlignment="Center"/>
+
+                                <Button x:Name="BtnAgregarProducto" Content="AGREGAR PRODUCTO" Click="BtnAgregarProducto_Click"
+                                        Style="{StaticResource Boton}" Margin="0,12,0,0" IsEnabled="False"/>
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button x:Name="BtnGuardarProducto" Content="GUARDAR PRODUCTO" Click="BtnGuardarProducto_Click"
+                                            Style="{StaticResource Boton}" IsEnabled="False"/>
+                                    <Button x:Name="BtnQuitarProducto" Grid.Column="2" Content="QUITAR PRODUCTO" Click="BtnQuitarProducto_Click"
+                                            Style="{StaticResource Boton}" Foreground="#FF6464" IsEnabled="False"/>
+                                </Grid>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Usuarios">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="320"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border BorderBrush="#333333" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+                        <DataGrid x:Name="GrillaUsuarios" SelectionChanged="GrillaUsuarios_SelectionChanged">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="ID" Binding="{Binding IdUsuario}" Width="60"/>
+                                <DataGridTextColumn Header="NOMBRE" Binding="{Binding Nombre}" Width="*"/>
+                                <DataGridTextColumn Header="ROL" Binding="{Binding Rol}" Width="120"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+
+                    <Border Grid.Column="2" Style="{StaticResource Panel}">
+                        <StackPanel>
+                            <TextBlock x:Name="TituloUsuario" Text="NUEVO USUARIO" Foreground="White" FontSize="15" FontWeight="Bold"/>
+                            <TextBlock Text="NOMBRE" Style="{StaticResource Etiqueta}"/>
+                            <TextBox x:Name="TxtNombreUsuario" Style="{StaticResource Campo}" MaxLength="100"/>
+                            <TextBlock Text="ROL" Style="{StaticResource Etiqueta}"/>
+                            <ComboBox x:Name="CmbRol" Height="34" VerticalContentAlignment="Center"/>
+                            <TextBlock Text="Los usuarios con rol Admin son dueños: pueden entrar aquí y cambiar el menú. La primera vez que entren crean su clave."
+                                       Foreground="#777777" FontSize="11" TextWrapping="Wrap" Margin="0,10,0,0"/>
+
+                            <Button x:Name="BtnAgregarUsuario" Content="AGREGAR USUARIO" Click="BtnAgregarUsuario_Click"
+                                    Style="{StaticResource Boton}" Background="#F5A623" BorderBrush="#F5A623"
+                                    Foreground="#111111" Margin="0,18,0,0"/>
+                            <Button x:Name="BtnGuardarUsuario" Content="GUARDAR CAMBIOS" Click="BtnGuardarUsuario_Click"
+                                    Style="{StaticResource Boton}" Margin="0,10,0,0" IsEnabled="False"/>
+                            <Button x:Name="BtnEliminarUsuario" Content="ELIMINAR" Click="BtnEliminarUsuario_Click"
+                                    Style="{StaticResource Boton}" Foreground="#FF6464" Margin="0,10,0,0" IsEnabled="False"/>
+                            <Button Content="LIMPIAR" Click="BtnLimpiarUsuario_Click" Style="{StaticResource Boton}" Margin="0,10,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <TextBlock x:Name="TextoEstado" Grid.Row="2" Foreground="#999999" FontSize="12" Margin="0,12,0,0" TextWrapping="Wrap"/>
+    </Grid>
+</Window>
