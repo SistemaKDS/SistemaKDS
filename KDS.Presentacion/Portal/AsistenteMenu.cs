@@ -14,7 +14,7 @@ namespace KDS.PRE.Portal
 {
     public record MensajeChat(string Rol, string Texto);
 
-    public record RespuestaBot(string Respuesta, List<PlatoModel> Sugeridos, string Nota, string Fuente);
+    public record RespuestaBot(string Respuesta, List<PlatoModel> Sugeridos, string Nota, string Fuente, Dictionary<int, int>? Pedido = null);
 
     public class AsistenteMenu
     {
@@ -34,13 +34,13 @@ namespace KDS.PRE.Portal
 
         public bool UsaClaude => cliente != null;
 
-        public async Task<RespuestaBot> ResponderAsync(string mensaje, IReadOnlyList<MensajeChat> historial, List<PlatoModel> menu, int mesa)
+        public async Task<RespuestaBot> ResponderAsync(string mensaje, IReadOnlyList<MensajeChat> historial, List<PlatoModel> menu, int mesa, IReadOnlyDictionary<int, int> carrito)
         {
             if (cliente != null)
             {
                 try
                 {
-                    return await PreguntarAClaudeAsync(mensaje, historial, menu, mesa);
+                    return await PreguntarAClaudeAsync(mensaje, historial, menu, mesa, carrito);
                 }
                 catch (Exception ex)
                 {
@@ -48,10 +48,10 @@ namespace KDS.PRE.Portal
                 }
             }
 
-            return ResponderSinConexion(mensaje, menu);
+            return ResponderSinConexion(mensaje, menu, carrito);
         }
 
-        private async Task<RespuestaBot> PreguntarAClaudeAsync(string mensaje, IReadOnlyList<MensajeChat> historial, List<PlatoModel> menu, int mesa)
+        private async Task<RespuestaBot> PreguntarAClaudeAsync(string mensaje, IReadOnlyList<MensajeChat> historial, List<PlatoModel> menu, int mesa, IReadOnlyDictionary<int, int> carrito)
         {
             var carta = new StringBuilder();
             foreach (var p in menu)
@@ -74,7 +74,13 @@ namespace KDS.PRE.Portal
                 "('25 lucas' = $25.000), 'pa'' es 'para', 'algo pa' la sed' es una bebida, 'algo pa' picar' es un acompañamiento, " +
                 "'estoy pelado' significa que tiene poca plata, 'somos 3' significa que el presupuesto se reparte entre tres, " +
                 "los diminutivos ('una gaseosita', 'unas papitas') se refieren al plato normal, y 'q', 'xq', 'tmb', 'porfa' son abreviaturas. " +
-                "Si el mensaje es ambiguo, haz una sola pregunta corta. Contesta con calidez y naturalidad colombiana, sin exagerar la jerga.";
+                "Si el mensaje es ambiguo, haz una sola pregunta corta. Contesta con calidez y naturalidad colombiana, sin exagerar la jerga. " +
+                "Pedido actual del cliente: " + DescribirCarrito(carrito, menu) + ". " +
+                "Si el cliente pide agregar, quitar o cambiar productos (aunque cambie de idea varias veces en el mismo mensaje, por ejemplo " +
+                "'quiero 3 hamburguesas con una coca cola, quítale una hamburguesa, mejor no la coca cola sino agua, bueno ponme la coca cola también'), " +
+                "aplica cada cambio en orden sobre el pedido actual, pon cambia_pedido en true y escribe en pedido_final el pedido completo resultante " +
+                "(cada id de la carta con su cantidad total, sin los que quedaron en cero). Si pide algo que no está en la carta, dile amablemente que no lo hay. " +
+                "En la respuesta repite cómo quedó el pedido y el total. Si el mensaje no cambia el pedido, pon cambia_pedido en false y pedido_final vacío.";
 
             var mensajes = new List<BetaMessageParam>();
             foreach (var m in historial.TakeLast(10))
@@ -96,9 +102,19 @@ namespace KDS.PRE.Portal
               "properties": {
                 "respuesta": { "type": "string" },
                 "ids_sugeridos": { "type": "array", "items": { "type": "integer" } },
-                "nota_cocina": { "type": "string" }
+                "nota_cocina": { "type": "string" },
+                "cambia_pedido": { "type": "boolean" },
+                "pedido_final": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": { "id": { "type": "integer" }, "cantidad": { "type": "integer" } },
+                    "required": ["id", "cantidad"],
+                    "additionalProperties": false
+                  }
+                }
               },
-              "required": ["respuesta", "ids_sugeridos", "nota_cocina"],
+              "required": ["respuesta", "ids_sugeridos", "nota_cocina", "cambia_pedido", "pedido_final"],
               "additionalProperties": false
             }
             """)!;
@@ -136,14 +152,53 @@ namespace KDS.PRE.Portal
                 .Select(e => e.GetInt32())
                 .ToHashSet();
 
+            Dictionary<int, int>? pedido = null;
+            if (raiz.TryGetProperty("cambia_pedido", out var cambia) && cambia.ValueKind == JsonValueKind.True)
+            {
+                var validos = menu.Select(p => p.IdPlato).ToHashSet();
+                pedido = new Dictionary<int, int>();
+                foreach (var item in raiz.GetProperty("pedido_final").EnumerateArray())
+                {
+                    int id = item.GetProperty("id").GetInt32();
+                    int cantidad = item.GetProperty("cantidad").GetInt32();
+                    if (validos.Contains(id) && cantidad > 0) pedido[id] = Math.Min(cantidad, 20);
+                }
+            }
+
             return new RespuestaBot(
                 raiz.GetProperty("respuesta").GetString() ?? string.Empty,
                 menu.Where(p => ids.Contains(p.IdPlato)).ToList(),
                 raiz.GetProperty("nota_cocina").GetString() ?? string.Empty,
-                "claude");
+                "claude",
+                pedido);
         }
 
-        public static RespuestaBot ResponderSinConexion(string mensaje, List<PlatoModel> menu)
+        private static string DescribirCarrito(IReadOnlyDictionary<int, int> carrito, List<PlatoModel> menu)
+        {
+            var partes = carrito.Where(c => c.Value > 0)
+                .Select(c => (Plato: menu.FirstOrDefault(p => p.IdPlato == c.Key), Cantidad: c.Value))
+                .Where(c => c.Plato != null)
+                .Select(c => $"{c.Cantidad} x {c.Plato!.Nombre} (id {c.Plato.IdPlato})")
+                .ToList();
+            return partes.Count == 0 ? "vacío" : string.Join(", ", partes);
+        }
+
+        private static string ResumirPedido(Dictionary<int, int> pedido, List<PlatoModel> menu)
+        {
+            var lineas = pedido.Where(c => c.Value > 0)
+                .Select(c => (Plato: menu.FirstOrDefault(p => p.IdPlato == c.Key), Cantidad: c.Value))
+                .Where(c => c.Plato != null)
+                .ToList();
+
+            if (lineas.Count == 0) return "Listo, tu pedido quedó vacío.";
+
+            var partes = lineas.Select(l => $"{l.Cantidad} {l.Plato!.Nombre}").ToList();
+            string lista = partes.Count == 1 ? partes[0] : string.Join(", ", partes.Take(partes.Count - 1)) + " y " + partes[^1];
+            decimal total = lineas.Sum(l => l.Plato!.Precio * l.Cantidad);
+            return $"Listo, tu pedido queda así: {lista}. Total {Pesos(total)}.";
+        }
+
+        public static RespuestaBot ResponderSinConexion(string mensaje, List<PlatoModel> menu, IReadOnlyDictionary<int, int>? carrito = null)
         {
             string texto = InterpreteColoquial.Normalizar(mensaje);
             string nota = InterpreteColoquial.LeerNotas(texto);
@@ -151,6 +206,18 @@ namespace KDS.PRE.Portal
 
             if (menu.Count == 0)
                 return new RespuestaBot("Uy, en este momento no hay platos disponibles. Llama al mesero y él te ayuda.", new(), nota, "local");
+
+            var cambio = InterpreteColoquial.InterpretarPedido(texto, menu, carrito ?? new Dictionary<int, int>());
+            if (cambio != null)
+            {
+                string resumen = ResumirPedido(cambio.Cantidades, menu);
+                if (cambio.NoDisponibles.Count > 0)
+                {
+                    string faltan = string.Join(" ni ", cambio.NoDisponibles);
+                    resumen += $" Eso sí, no tenemos {faltan}. ¿Te provoca otra cosa de la carta?";
+                }
+                return new RespuestaBot(resumen + avisoNota, new(), nota, "local", cambio.Cantidades);
+            }
 
             if (InterpreteColoquial.EsSaludo(texto))
                 return new RespuestaBot("¡Quiubo! Cuéntame cuánto quieres gastar o qué se te antoja (algo pa' la sed, pa' picar o bien llenador) y te ayudo.", new(), nota, "local");

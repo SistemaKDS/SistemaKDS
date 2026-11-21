@@ -996,12 +996,18 @@ async function preguntar(texto, porVoz) {
     const r = await pedirJson("/api/bot", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mensaje: texto, mesa: estado.mesa, historial })
+      body: JSON.stringify({
+        mensaje: texto,
+        mesa: estado.mesa,
+        historial,
+        carrito: Array.from(estado.carrito.values()).map(l => ({ idPlato: l.plato.id, cantidad: l.cantidad }))
+      })
     });
     espera.remove();
     if (r.nota) estado.notaBot = r.nota;
-    burbuja("bot", r.respuesta, r.sugeridos);
+    const globo = burbuja("bot", r.respuesta, r.sugeridos);
     estado.historial.push({ rol: "bot", texto: r.respuesta });
+    if (Array.isArray(r.pedido)) aplicarPedidoDelBot(r.pedido, globo);
     decirEnGlobo(r.sugeridos && r.sugeridos.length ? "Toca un botón naranja y te lo agrego." : "¿Algo más?");
     hablar(r.respuesta);
   } catch (e) {
@@ -1009,6 +1015,37 @@ async function preguntar(texto, porVoz) {
     ponerPlati("reposo");
     decirEnGlobo("Uy, se me cayó la conexión. ¿Me repites?");
   }
+}
+
+function aplicarPedidoDelBot(pedido, globo) {
+  const antes = new Map(Array.from(estado.carrito.entries()).map(([id, l]) => [id, { ...l }]));
+  const nuevo = new Map();
+  pedido.forEach(item => {
+    const plato = estado.menu.find(p => p.id === item.id);
+    if (!plato || item.cantidad < 1) return;
+    const previa = estado.carrito.get(item.id);
+    nuevo.set(item.id, { plato, cantidad: Math.min(item.cantidad, 20), nota: previa ? previa.nota : (estado.notaBot || "") });
+  });
+  estado.carrito = nuevo;
+  actualizarCarrito();
+  ponerPlati("feliz", 1100);
+
+  const acciones = elemento("div", "sugeridos");
+  const ver = elemento("button", "", "🛒 Ver mi pedido");
+  ver.type = "button";
+  ver.onclick = () => abrir("hojaCarrito");
+  const deshacer = elemento("button", "", "↩ Deshacer");
+  deshacer.type = "button";
+  deshacer.onclick = () => {
+    estado.carrito = antes;
+    actualizarCarrito();
+    deshacer.disabled = true;
+    deshacer.textContent = "Deshecho";
+    avisar("Dejé tu pedido como estaba");
+  };
+  acciones.append(ver, deshacer);
+  globo.appendChild(acciones);
+  $("chat").scrollTop = $("chat").scrollHeight;
 }
 
 function abrir(id) {

@@ -62,10 +62,14 @@ El asistente entiende cómo escribe la gente normalmente, con Claude y también 
 - Antojos: "tengo sed", "algo pa picar", "me muero de hambre", "estoy pelado".
 - Cuántos son: "somos 3 y tenemos 60 mil" reparte el presupuesto por persona.
 - Cambios al plato: "sin cebolla", "no le eche tomate", "bien asada", "extra queso". Eso queda como nota del pedido para cocina.
+- Pedidos con cambios encadenados, escritos o por voz: "quiero 3 hamburguesas con una coca cola pero quítale una hamburguesa, ahora no quiero coca cola quiero agua, pero ahora quiero coca cola también". Plati sigue cada cambio, arma el pedido final en el carrito y responde cómo quedó y el total. Si piden algo que no está en la carta (como agua), lo dice. Debajo de la respuesta salen **Ver mi pedido** y **Deshacer**.
 
 ## Flujo completo
 
-1. **Dueño:** en la pantalla del mesero, botón **ADMIN PLATOS**. Pide la clave del dueño: la primera vez se crea ahí mismo y después siempre se pide, así los meseros no pueden cambiar platos ni precios. Tras 5 intentos fallidos hay que esperar 30 segundos. Dentro se agregan, modifican o eliminan platos, y cada plato debe tener categoría **Comida**, **Bebida** o **Acompañamiento**. Con **Cambiar mi clave** el dueño pone una nueva. Si un plato ya tiene pedidos guardados, al eliminarlo queda como agotado para no dañar el historial.
+1. **Dueño:** en la pantalla del mesero, botón **ADMINISTRAR**. Pide la clave del dueño: la primera vez se crea ahí mismo y después siempre se pide, así los meseros no pueden cambiar platos ni precios. Tras 5 intentos fallidos hay que esperar 30 segundos. Se abre la ventana **Base de datos**:
+   - **Pedidos:** todos los pedidos guardados en `bd_kds`, también los que llegan del menú web, con filtro por estado. Se puede cambiar la mesa y el estado, agregar, editar o quitar productos y eliminar el pedido. La lista se refresca sola cada 5 segundos.
+   - **Usuarios:** agregar, editar y eliminar meseros, cocineros y dueños (Admin). Siempre debe quedar al menos un Admin.
+   - **Platos del menú:** se agregan, modifican o eliminan platos, y cada plato debe tener categoría **Comida**, **Bebida** o **Acompañamiento**. Con **Cambiar mi clave** el dueño pone una nueva. Si un plato ya tiene pedidos guardados, al eliminarlo queda como agotado para no dañar el historial. Lo que se cambie aquí sale en el menú web en menos de 30 segundos, sin reiniciar nada.
 2. **Cliente:** abre el menú web desde el sticker (`/?mesa=2`), arma su pedido, puede preguntarle al asistente y toca **Enviar solicitud al mesero**. El pedido queda en estado `Solicitado` y el cliente ve en su celular cuando lo aprueban, se prepara y está listo.
 3. **Mesero:** la solicitud aparece en el recuadro **Solicitudes del cliente**. Con **Aprobar y enviar a cocina** pasa a `Pendiente`; con **Rechazar** se borra.
 4. **Cocina:** a los 3 segundos aparece la tarjeta, se lee en voz alta y el chef la avanza a Preparando y Listo.
@@ -105,7 +109,7 @@ setx KDS_NGROK_DOMINIO "nombre-raro.ngrok-free.dev"
 
 El token sale en el panel de ngrok, en **Your Authtoken**. Después de `setx` hay que cerrar y abrir Visual Studio. Desde ahí, cada vez que se abre el programa la barra dice `LINK PARA LOS NFC: https://nombre-raro.ngrok-free.dev/?mesa=1 · FIJO`.
 
-En la cuenta gratis, la primera vez que un celular abre el link ngrok muestra una página de aviso con el botón **Visit Site**; se toca una vez y ya entra al menú.
+En la cuenta gratis, la primera vez que un celular abre el link ngrok muestra una página de aviso con el botón **Visit Site**; se toca una vez y ya entra al menú. Esa página la pone ngrok y no se puede quitar desde el programa: solo desaparece con un plan pago de ngrok o usando la opción 2.
 
 ### Opción 2: dominio propio con Cloudflare
 

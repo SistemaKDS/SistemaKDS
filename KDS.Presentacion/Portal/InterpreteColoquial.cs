@@ -17,6 +17,8 @@ namespace KDS.PRE.Portal
         Barato
     }
 
+    public record CambioPedido(Dictionary<int, int> Cantidades, List<string> NoDisponibles);
+
     public static class InterpreteColoquial
     {
         private static readonly (string Patron, string Reemplazo)[] Expresiones =
@@ -29,6 +31,7 @@ namespace KDS.PRE.Portal
             (@"\bkiero\b|\bqiero\b", "quiero"),
             (@"\bbaratic[oa]s?\b|\bbaratit[oa]s?\b", "barato"),
             (@"\bha?m?bu?rgu?e?s+(a|ita)s?\b|\bburg(u)?er(s)?\b|\bburguesa\b|\bamburguesa\b", "hamburguesa"),
+            (@"\bcocas?\b(?!\s?cola)", "gaseosa"),
             (@"\bgaseosita?s?\b|\bgaseocita?s?\b|\bgasiosa\b|\bcoca\s?cola\b|\bcocacola\b|\bpostobon\b", "gaseosa"),
             (@"\bpapita?s\b|\bpapas?\s+a\s+la\s+francesa\b", "papas"),
             (@"\blimonadit[ao]\b", "limonada"),
@@ -174,6 +177,174 @@ namespace KDS.PRE.Portal
             if (encontrados.Count == 0) return new();
             int mejor = encontrados.Max(e => e.Coincidencias);
             return encontrados.Where(e => e.Coincidencias == mejor).Select(e => e.Plato).ToList();
+        }
+
+        private static readonly string[] CosasDeComer =
+        {
+            "agua", "jugo", "cerveza", "limonada", "gaseosa", "hamburguesa", "papas", "pizza", "perro", "salchipapa",
+            "arepa", "empanada", "cafe", "tinto", "malteada", "pasta", "lasagna", "pollo", "costilla", "ensalada", "postre", "helado"
+        };
+
+        private static readonly string[] Conectores =
+        {
+            "pero", "ahora", "tambien", "bueno", "entonces", "mejor", "osea", "luego", "despues", "favor", "mas", "todo", "toda",
+            "nada", "solo", "sola", "bien", "quiero", "dame", "porfa", "ponme", "otra", "otro", "vez", "por"
+        };
+
+        private enum Accion { Agregar, Quitar }
+
+        public static CambioPedido? InterpretarPedido(string t, List<PlatoModel> menu, IReadOnlyDictionary<int, int> carritoActual)
+        {
+            var palabras = Regex.Matches(t, @"[a-zñ]+|\d+").Select(m => m.Value).ToList();
+            var nombres = menu.ToDictionary(p => p, p => Palabras(Normalizar(p.Nombre)));
+            var cantidades = carritoActual.Where(c => c.Value > 0).ToDictionary(c => c.Key, c => c.Value);
+            var noHay = new List<string>();
+
+            var accion = Accion.Agregar;
+            int? cantidad = null;
+            bool huboCambio = false;
+            bool huboIntencion = false;
+            int sueltas = 0;
+
+            for (int i = 0; i < palabras.Count; i++)
+            {
+                string w = palabras[i];
+                string siguiente = i + 1 < palabras.Count ? palabras[i + 1] : string.Empty;
+
+                if (accion == Accion.Quitar && sueltas >= 3)
+                {
+                    accion = Accion.Agregar;
+                    sueltas = 0;
+                }
+
+                if (w is "sin" or "menos")
+                {
+                    if (PlatoQueEmpiezaEn(palabras, i + 1, nombres).Plato != null)
+                    {
+                        accion = Accion.Quitar;
+                        sueltas = 0;
+                    }
+                    else
+                    {
+                        i++;
+                    }
+                    continue;
+                }
+
+                if (w is "no" && siguiente is "quiero" or "quiere" or "queremos")
+                {
+                    sueltas = 0;
+                    accion = Accion.Quitar;
+                    huboIntencion = true;
+                    i++;
+                    continue;
+                }
+
+                if (Regex.IsMatch(w, @"^(quit|sac|elimin|borr|cancel|retir)[a-z]*$") || w is "cambia" or "cambiale" or "cambiame" or "vez")
+                {
+                    accion = Accion.Quitar;
+                    sueltas = 0;
+                    huboIntencion = true;
+                    continue;
+                }
+
+                if (w is "quiero" or "queremos" or "dame" or "deme" or "denme" or "ponme" or "pon" or "ponle" or "traeme" or "traiganme" or "regalame"
+                    || w is "agrega" or "agregale" or "agregame" or "anade" or "anademe" or "suma" or "tambien" or "por" or "mejor" or "pidame" or "pideme")
+                {
+                    accion = Accion.Agregar;
+                    huboIntencion = huboIntencion || w is not "por" and not "mejor";
+                    continue;
+                }
+
+                if (w is "otra" or "otro" or "otras" or "otros")
+                {
+                    accion = Accion.Agregar;
+                    cantidad ??= 1;
+                    huboIntencion = true;
+                    continue;
+                }
+
+                if (int.TryParse(w, out int n) || Numeros.TryGetValue(w, out n))
+                {
+                    if (n is > 0 and <= 20) cantidad = n;
+                    continue;
+                }
+
+                var (plato, usadas, puntos) = PlatoQueEmpiezaEn(palabras, i, nombres);
+                if (plato != null && puntos == 1 && PlatoQueEmpiezaEn(palabras, i + 1, nombres) is { Plato: not null, Puntos: >= 2 } mejorSiguiente
+                    && mejorSiguiente.Plato != plato)
+                {
+                    continue;
+                }
+                if (plato == null)
+                {
+                    if (!PalabrasVacias.Contains(w) && w.Length >= 3) sueltas++;
+                    if (!Conectores.Contains(w) && CosasDeComer.Any(c => SePareceA(w, c)) && (huboIntencion || cantidad != null))
+                    {
+                        if (!noHay.Contains(w.TrimEnd('s'))) noHay.Add(w.TrimEnd('s'));
+                        cantidad = null;
+                    }
+                    continue;
+                }
+
+                i += usadas - 1;
+                cantidades.TryGetValue(plato.IdPlato, out int actual);
+
+                if (accion == Accion.Quitar)
+                {
+                    int nuevo = cantidad is int q ? Math.Max(0, actual - q) : 0;
+                    if (nuevo == 0) cantidades.Remove(plato.IdPlato); else cantidades[plato.IdPlato] = nuevo;
+                    if (siguiente is "por") accion = Accion.Agregar;
+                }
+                else
+                {
+                    cantidades[plato.IdPlato] = Math.Min(20, actual + (cantidad ?? 1));
+                }
+
+                huboCambio = true;
+                cantidad = null;
+                sueltas = 0;
+            }
+
+            if (!huboCambio || (!huboIntencion && !palabras.Any(p => int.TryParse(p, out _) || Numeros.ContainsKey(p))))
+                return null;
+
+            return new CambioPedido(cantidades, noHay);
+        }
+
+        private static (PlatoModel? Plato, int Usadas, int Puntos) PlatoQueEmpiezaEn(List<string> palabras, int inicio, Dictionary<PlatoModel, List<string>> nombres)
+        {
+            if (inicio >= palabras.Count) return (null, 0, 0);
+            string w = palabras[inicio];
+            if (w.Length < 3 || PalabrasVacias.Contains(w) || Conectores.Contains(w)) return (null, 0, 0);
+
+            PlatoModel? mejor = null;
+            int mejorPuntos = 0, mejorUsadas = 0;
+
+            foreach (var (plato, partes) in nombres)
+            {
+                if (!partes.Any(pp => SePareceA(w, pp))) continue;
+
+                int puntos = 1, usadas = 1;
+                for (int j = inicio + 1; j < palabras.Count && j <= inicio + 3; j++)
+                {
+                    string otra = palabras[j];
+                    if (PalabrasVacias.Contains(otra)) { usadas++; continue; }
+                    if (partes.Any(pp => SePareceA(otra, pp))) { puntos++; usadas = j - inicio + 1; }
+                    else break;
+                }
+
+                if (puntos > mejorPuntos)
+                {
+                    mejor = plato;
+                    mejorPuntos = puntos;
+                    mejorUsadas = usadas;
+                }
+            }
+
+            if (mejor == null) return (null, 0, 0);
+            while (mejorUsadas > 1 && PalabrasVacias.Contains(palabras[inicio + mejorUsadas - 1])) mejorUsadas--;
+            return (mejor, mejorUsadas, mejorPuntos);
         }
 
         private static List<string> Palabras(string texto)

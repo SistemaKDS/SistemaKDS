@@ -185,9 +185,9 @@
             </StackPanel>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="18,0,0,0">
-                <Button Content="ADMIN PLATOS" Click="BtnAdminPlatos_Click"
+                <Button Content="ADMINISTRAR" Click="BtnAdminPlatos_Click"
                         Style="{StaticResource BotonOscuro}" Height="32" Padding="12,0"
-                        FontSize="11" Margin="0,0,0,8" ToolTip="Agregar, modificar o eliminar platos del menú"/>
+                        FontSize="11" Margin="0,0,0,8" ToolTip="Ver y cambiar pedidos, usuarios y platos de la base de datos"/>
                 <Button Content="ABRIR COCINA ↗" Click="BtnAbrirCocina_Click"
                         Style="{StaticResource BotonOscuro}" Foreground="#F5A623"
                         Height="38" Padding="12,0" FontSize="11" Margin="0,0,0,8"/>

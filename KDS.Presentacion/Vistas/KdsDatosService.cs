@@ -43,7 +43,7 @@ namespace KDS.PRE.Vistas
         public int MinutosEspera => Math.Max(0, (int)(DateTime.Now - FechaHora).TotalMinutes);
     }
 
-    public static class KdsDatosService
+    public static partial class KdsDatosService
     {
         private static readonly string CadenaConexion =
             Environment.GetEnvironmentVariable("KDS_CONEXION")
