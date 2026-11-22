@@ -46,8 +46,8 @@ namespace KDS.PRE.Vistas
     public static partial class KdsDatosService
     {
         private static readonly string CadenaConexion =
-            Environment.GetEnvironmentVariable("KDS_CONEXION")
-            ?? "Host=localhost;Port=5432;Username=postgres;Password=1234;Database=bd_kds;";
+    Environment.GetEnvironmentVariable("KDS_CONEXION")
+    ?? "Host=aws-0-us-west-2.pooler.supabase.com;Port=5432;Database=postgres;Username=postgres.mntkeoodeghtjkgqmyzg;Password=KdsRestaurante2026;SSL Mode=Require;Trust Server Certificate=true;";
 
         public static string? ActualizarEstructura()
         {
