@@ -545,6 +545,19 @@
                                                         <TextBlock Text="{Binding DetalleEntrega, Mode=OneWay}"
                                                                    Foreground="#AAAAAA" FontSize="11"
                                                                    TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                                        <TextBlock Text="{Binding PagoTexto, Mode=OneWay}"
+                                                                   Foreground="{Binding ColorPago, Mode=OneWay}" FontSize="12"
+                                                                   FontWeight="Bold" TextWrapping="Wrap" Margin="0,6,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="{x:Type TextBlock}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding PagoTexto}" Value="">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
                                                         <Button Content="APROBAR Y ENVIAR A COCINA" Tag="{Binding}"
                                                                 Click="BtnAprobarSolicitud_Click"
                                                                 Style="{StaticResource BotonNaranja}"
@@ -585,6 +598,19 @@
                                                         <TextBlock Text="{Binding DetalleEntrega, Mode=OneWay}"
                                                                    Foreground="#AAAAAA" FontSize="11"
                                                                    TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                                        <TextBlock Text="{Binding PagoTexto, Mode=OneWay}"
+                                                                   Foreground="{Binding ColorPago, Mode=OneWay}" FontSize="12"
+                                                                   FontWeight="Bold" TextWrapping="Wrap" Margin="0,6,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="{x:Type TextBlock}">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding PagoTexto}" Value="">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
                                                         <Button Content="VER TICKET" Tag="{Binding}"
                                                                 Click="BtnTicketListo_Click"
                                                                 Style="{StaticResource BotonOscuro}"

@@ -196,7 +196,11 @@ namespace KDS.PRE.Vistas
                 d.Cantidad,
                 d.NotasEspeciales));
 
-            var pedido = new PedidoCocina(p.IdPedido, $"Mesa {p.NumeroMesa:00}", atendidoPor, productos, string.Empty, p.FechaHora);
+            var pedido = new PedidoCocina(p.IdPedido, $"Mesa {p.NumeroMesa:00}", atendidoPor, productos, string.Empty, p.FechaHora)
+            {
+                MetodoPago = p.MetodoPago ?? string.Empty,
+                Pagado = p.EstadoPago == "Pagado"
+            };
             pedido.CambiarEstado(estado);
             return pedido;
         }

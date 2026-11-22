@@ -146,6 +146,34 @@ namespace KDS.PRE.Portal
         public static bool EsAgradecimiento(string t) =>
             Regex.IsMatch(t, @"\b(gracias|muchas gracias|mil gracias|listo|de una|bacano|chevere|perfecto)\b") && t.Length < 40;
 
+        public static bool QuiereEnviar(string t)
+        {
+            if (Regex.IsMatch(t, @"\bno\s+(?:lo\s+|la\s+|me\s+lo\s+)?(?:mandes|mande|envies|envie|pidas|pida|confirmes|confirme)\b|\btodavia no\b|\btodavia falta\b|\bespera\b"))
+                return false;
+
+            return Regex.IsMatch(t,
+                @"\b(mandal[oa]s?|mandamel[oa]s?|mandemel[oa]s?|mandel[oa]s?|envial[oa]s?|enviamel[oa]s?|enviel[oa]s?|envialo ya|" +
+                @"pidel[oa]|pidamel[oa]|pidemel[oa]|ordenal[oa]|" +
+                @"(?:haz|has|hagame|haga|hazme|realiza|realizame|monta|montame|registra|registrame)(?:me)?\s+(?:el|mi|este|ese)\s+pedido|" +
+                @"(?:mandar|enviar|pedir|confirmar|ordenar|montar)\s+(?:el|mi|ya|este|ese)?\s*pedido|" +
+                @"(?:manda|envia|confirma|pide)\s+(?:el|mi|este|ese)\s+pedido|" +
+                @"confirmo|confirmalo|confirmad[oa]|eso es todo|eso seria todo|seria todo|es todo|asi esta bien|asi queda bien|asi esta perfecto|" +
+                @"ya puedes pedir|ya puedes mandar|ya pide|pide ya|ya manda|manda ya|listo mandalo|listo envialo)\b");
+        }
+
+        public static bool EsAfirmacion(string t) =>
+            Regex.IsMatch(t, @"^(si|sii|sip|claro|dale|de una|hagale|hagamosle|listo|ok|okay|okey|va|vale|por favor|si por favor|si senor|si senora|obvio|correcto|exacto|eso|asi es)\b[\s!.,]*(por favor|porfa|gracias|mandalo|envialo|de una|dale)?[\s!.,]*$");
+
+        public static string? LeerMetodoPago(string t)
+        {
+            if (Regex.IsMatch(t, @"\bdavi\s?plata\b")) return "Daviplata";
+            if (Regex.IsMatch(t, @"\bnequi\b|\bneki\b")) return "Nequi";
+            if (Regex.IsMatch(t, @"\b(transferencia|transfiero|transferir|transfer|bancolombia|bre\s?-?b|llave|pse)\b")) return "Transferencia";
+            if (Regex.IsMatch(t, @"\b(tarjeta|datafono|credito|debito|visa|mastercard)\b")) return "Tarjeta";
+            if (Regex.IsMatch(t, @"\b(efectivo|cash|billete|billetes|contado|en plata|plata en mano)\b")) return "Efectivo";
+            return null;
+        }
+
         public static int LeerPersonas(string t)
         {
             var m = Regex.Match(t, @"\b(?:somos|para)\s+(\d+|[a-z]+)\s*(?:personas|amigos|parceros|ninos|adultos)?\b");

@@ -44,3 +44,16 @@ ALTER TABLE platos ADD CONSTRAINT platos_categoria_check
     CHECK (categoria IN ('Comida', 'Bebida', 'Acompañamiento'));
 
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS clave_hash VARCHAR(200);
+
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS metodo_pago VARCHAR(20);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS estado_pago VARCHAR(20);
+ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS referencia_pago VARCHAR(60);
+UPDATE pedidos SET estado_pago = CASE WHEN estado = 'Entregado' THEN 'Pagado' ELSE 'Pendiente' END WHERE estado_pago IS NULL;
+ALTER TABLE pedidos ALTER COLUMN estado_pago SET DEFAULT 'Pendiente';
+ALTER TABLE pedidos ALTER COLUMN estado_pago SET NOT NULL;
+ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_metodo_pago_check;
+ALTER TABLE pedidos ADD CONSTRAINT pedidos_metodo_pago_check
+    CHECK (metodo_pago IS NULL OR metodo_pago IN ('Efectivo', 'Tarjeta', 'Nequi', 'Daviplata', 'Transferencia'));
+ALTER TABLE pedidos DROP CONSTRAINT IF EXISTS pedidos_estado_pago_check;
+ALTER TABLE pedidos ADD CONSTRAINT pedidos_estado_pago_check
+    CHECK (estado_pago IN ('Pendiente', 'Pagado'));

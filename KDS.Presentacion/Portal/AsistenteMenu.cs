@@ -14,7 +14,8 @@ namespace KDS.PRE.Portal
 {
     public record MensajeChat(string Rol, string Texto);
 
-    public record RespuestaBot(string Respuesta, List<PlatoModel> Sugeridos, string Nota, string Fuente, Dictionary<int, int>? Pedido = null);
+    public record RespuestaBot(string Respuesta, List<PlatoModel> Sugeridos, string Nota, string Fuente, Dictionary<int, int>? Pedido = null,
+                               bool EnviarPedido = false, string? MetodoPago = null);
 
     public class AsistenteMenu
     {
@@ -34,13 +35,14 @@ namespace KDS.PRE.Portal
 
         public bool UsaClaude => cliente != null;
 
-        public async Task<RespuestaBot> ResponderAsync(string mensaje, IReadOnlyList<MensajeChat> historial, List<PlatoModel> menu, int mesa, IReadOnlyDictionary<int, int> carrito)
+        public async Task<RespuestaBot> ResponderAsync(string mensaje, IReadOnlyList<MensajeChat> historial, List<PlatoModel> menu, int mesa,
+                                                       IReadOnlyDictionary<int, int> carrito, string? metodoPago = null)
         {
             if (cliente != null)
             {
                 try
                 {
-                    return await PreguntarAClaudeAsync(mensaje, historial, menu, mesa, carrito);
+                    return await PreguntarAClaudeAsync(mensaje, historial, menu, mesa, carrito, metodoPago);
                 }
                 catch (Exception ex)
                 {
@@ -48,10 +50,11 @@ namespace KDS.PRE.Portal
                 }
             }
 
-            return ResponderSinConexion(mensaje, menu, carrito);
+            return ResponderSinConexion(mensaje, menu, carrito, metodoPago, historial);
         }
 
-        private async Task<RespuestaBot> PreguntarAClaudeAsync(string mensaje, IReadOnlyList<MensajeChat> historial, List<PlatoModel> menu, int mesa, IReadOnlyDictionary<int, int> carrito)
+        private async Task<RespuestaBot> PreguntarAClaudeAsync(string mensaje, IReadOnlyList<MensajeChat> historial, List<PlatoModel> menu, int mesa,
+                                                               IReadOnlyDictionary<int, int> carrito, string? metodoPago)
         {
             var carta = new StringBuilder();
             foreach (var p in menu)
@@ -80,10 +83,23 @@ namespace KDS.PRE.Portal
                 "'quiero 3 hamburguesas con una coca cola, quítale una hamburguesa, mejor no la coca cola sino agua, bueno ponme la coca cola también'), " +
                 "aplica cada cambio en orden sobre el pedido actual, pon cambia_pedido en true y escribe en pedido_final el pedido completo resultante " +
                 "(cada id de la carta con su cantidad total, sin los que quedaron en cero). Si pide algo que no está en la carta, dile amablemente que no lo hay. " +
-                "En la respuesta repite cómo quedó el pedido y el total. Si el mensaje no cambia el pedido, pon cambia_pedido en false y pedido_final vacío.";
+                "En la respuesta repite cómo quedó el pedido y el total. Si el mensaje no cambia el pedido, pon cambia_pedido en false y pedido_final vacío. " +
+                "Lee con cuidado todo el mensaje y la conversación anterior: el cliente puede pedir varias cosas a la vez, usar números en letras " +
+                "('un par' = 2, 'media docena' = 6), referirse a algo dicho antes ('otra igual', 'lo mismo para mi amigo', 'quita lo último') " +
+                "o dictar por voz con errores de transcripción ('am burguesa', 'limo nada', 'coca cola' por gaseosa). Asocia cada cosa al plato más parecido de la carta. " +
+                "TÚ PUEDES HACER EL PEDIDO POR EL CLIENTE. Métodos de pago que acepta el restaurante: " + MetodosPago.Describir() + ". " +
+                "Método de pago elegido hasta ahora: " + (metodoPago ?? "ninguno") + ". " +
+                "Si el cliente dice cómo va a pagar ('pago con nequi', 'en efectivo', 'con tarjeta'), pon ese método en metodo_pago; si no lo dice, déjalo vacío. " +
+                "Si el cliente pide que envíes, mandes, confirmes o hagas el pedido ('mándalo', 'hazme el pedido', 'eso es todo', 'sí, envíalo' después de que tú le preguntaste), " +
+                "y el pedido resultante tiene al menos un producto y ya hay método de pago (elegido antes o en este mensaje), pon enviar_pedido en true " +
+                "y en la respuesta dile qué se envió, el total y que el mesero lo confirma en un momento. " +
+                "Si quiere enviarlo pero falta el método de pago, pon enviar_pedido en false y pregúntale cómo va a pagar nombrando las opciones. " +
+                "Si está vacío el pedido, dile que primero escoja algo. Nunca envíes el pedido si el cliente no lo pidió claramente; " +
+                "cuando el cliente termine de armar su pedido, pregúntale '¿Te lo envío al mesero?'. " +
+                "Nunca pidas ni recibas números de tarjeta, claves o códigos: el pago con tarjeta se hace con el datáfono en la mesa.";
 
             var mensajes = new List<BetaMessageParam>();
-            foreach (var m in historial.TakeLast(10))
+            foreach (var m in historial.TakeLast(16))
             {
                 if (string.IsNullOrWhiteSpace(m.Texto)) continue;
                 if (m.Rol == "bot")
@@ -96,6 +112,7 @@ namespace KDS.PRE.Portal
             while (mensajes.Count > 1 && mensajes[0].Role != "user")
                 mensajes.RemoveAt(0);
 
+            var idsPago = MetodosPago.Disponibles().Select(m => m.Id).Prepend(string.Empty).ToArray();
             var esquema = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>("""
             {
               "type": "object",
@@ -104,6 +121,8 @@ namespace KDS.PRE.Portal
                 "ids_sugeridos": { "type": "array", "items": { "type": "integer" } },
                 "nota_cocina": { "type": "string" },
                 "cambia_pedido": { "type": "boolean" },
+                "enviar_pedido": { "type": "boolean" },
+                "metodo_pago": { "type": "string" },
                 "pedido_final": {
                   "type": "array",
                   "items": {
@@ -114,10 +133,13 @@ namespace KDS.PRE.Portal
                   }
                 }
               },
-              "required": ["respuesta", "ids_sugeridos", "nota_cocina", "cambia_pedido", "pedido_final"],
+              "required": ["respuesta", "ids_sugeridos", "nota_cocina", "cambia_pedido", "pedido_final", "enviar_pedido", "metodo_pago"],
               "additionalProperties": false
             }
             """)!;
+            var propiedades = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(esquema["properties"].GetRawText())!;
+            propiedades["metodo_pago"] = JsonSerializer.SerializeToElement(new { type = "string", @enum = idsPago });
+            esquema["properties"] = JsonSerializer.SerializeToElement(propiedades);
 
             var parametros = new MessageCreateParams
             {
@@ -129,7 +151,7 @@ namespace KDS.PRE.Portal
                 Messages = mensajes,
                 OutputConfig = new BetaOutputConfig
                 {
-                    Effort = Effort.Low,
+                    Effort = Effort.Medium,
                     Format = new BetaJsonOutputFormat { Schema = esquema }
                 }
             };
@@ -165,12 +187,19 @@ namespace KDS.PRE.Portal
                 }
             }
 
+            string? metodoNuevo = raiz.TryGetProperty("metodo_pago", out var mp) ? MetodosPago.Buscar(mp.GetString())?.Id : null;
+            bool enviar = raiz.TryGetProperty("enviar_pedido", out var env) && env.ValueKind == JsonValueKind.True;
+            var final = pedido ?? carrito.Where(c => c.Value > 0).ToDictionary(c => c.Key, c => c.Value);
+            if (enviar && (final.Count == 0 || (metodoNuevo ?? metodoPago) == null)) enviar = false;
+
             return new RespuestaBot(
                 raiz.GetProperty("respuesta").GetString() ?? string.Empty,
                 menu.Where(p => ids.Contains(p.IdPlato)).ToList(),
                 raiz.GetProperty("nota_cocina").GetString() ?? string.Empty,
                 "claude",
-                pedido);
+                pedido,
+                enviar,
+                metodoNuevo);
         }
 
         private static string DescribirCarrito(IReadOnlyDictionary<int, int> carrito, List<PlatoModel> menu)
@@ -182,6 +211,32 @@ namespace KDS.PRE.Portal
                 .ToList();
             return partes.Count == 0 ? "vacío" : string.Join(", ", partes);
         }
+
+        private static string OpcionesPago()
+        {
+            var nombres = MetodosPago.Disponibles().Select(m => m.Nombre.Split(' ')[0].ToLowerInvariant()).ToList();
+            return nombres.Count == 1 ? nombres[0] : string.Join(", ", nombres.Take(nombres.Count - 1)) + " o " + nombres[^1];
+        }
+
+        private static string NombrePago(string id) => MetodosPago.Buscar(id)?.Nombre.Split(' ')[0].ToLowerInvariant() ?? id;
+
+        private static string ListarPedido(IReadOnlyDictionary<int, int> pedido, List<PlatoModel> menu)
+        {
+            var partes = pedido.Where(c => c.Value > 0)
+                .Select(c => (Plato: menu.FirstOrDefault(p => p.IdPlato == c.Key), Cantidad: c.Value))
+                .Where(c => c.Plato != null)
+                .Select(c => $"{c.Cantidad} {c.Plato!.Nombre}")
+                .ToList();
+            return partes.Count switch
+            {
+                0 => "nada",
+                1 => partes[0],
+                _ => string.Join(", ", partes.Take(partes.Count - 1)) + " y " + partes[^1]
+            };
+        }
+
+        private static decimal TotalPedido(IReadOnlyDictionary<int, int> pedido, List<PlatoModel> menu) =>
+            pedido.Sum(c => (menu.FirstOrDefault(p => p.IdPlato == c.Key)?.Precio ?? 0) * c.Value);
 
         private static string ResumirPedido(Dictionary<int, int> pedido, List<PlatoModel> menu)
         {
@@ -198,7 +253,11 @@ namespace KDS.PRE.Portal
             return $"Listo, tu pedido queda así: {lista}. Total {Pesos(total)}.";
         }
 
-        public static RespuestaBot ResponderSinConexion(string mensaje, List<PlatoModel> menu, IReadOnlyDictionary<int, int>? carrito = null)
+        public const string PreguntaPago = "¿Cómo vas a pagar?";
+        public const string PreguntaEnvio = "¿Te lo envío al mesero?";
+
+        public static RespuestaBot ResponderSinConexion(string mensaje, List<PlatoModel> menu, IReadOnlyDictionary<int, int>? carrito = null,
+                                                        string? metodoActual = null, IReadOnlyList<MensajeChat>? historial = null)
         {
             string texto = InterpreteColoquial.Normalizar(mensaje);
             string nota = InterpreteColoquial.LeerNotas(texto);
@@ -207,16 +266,59 @@ namespace KDS.PRE.Portal
             if (menu.Count == 0)
                 return new RespuestaBot("Uy, en este momento no hay platos disponibles. Llama al mesero y él te ayuda.", new(), nota, "local");
 
-            var cambio = InterpreteColoquial.InterpretarPedido(texto, menu, carrito ?? new Dictionary<int, int>());
+            string ultimoBot = historial?.LastOrDefault(h => h.Rol == "bot")?.Texto ?? string.Empty;
+            bool preguntePago = ultimoBot.Contains(PreguntaPago);
+            bool pregunteEnvio = ultimoBot.Contains(PreguntaEnvio);
+
+            string? metodoDicho = MetodosPago.Buscar(InterpreteColoquial.LeerMetodoPago(texto))?.Id;
+            string? metodoNoAceptado = metodoDicho == null ? InterpreteColoquial.LeerMetodoPago(texto) : null;
+            string? metodo = metodoDicho ?? metodoActual;
+            bool afirma = InterpreteColoquial.EsAfirmacion(texto);
+            bool quiereEnviar = InterpreteColoquial.QuiereEnviar(texto)
+                || (pregunteEnvio && afirma)
+                || (preguntePago && metodoDicho != null);
+
+            var actual = (carrito ?? new Dictionary<int, int>()).Where(c => c.Value > 0).ToDictionary(c => c.Key, c => c.Value);
+            var cambio = InterpreteColoquial.InterpretarPedido(texto, menu, actual);
+            var final = cambio?.Cantidades ?? actual;
+
+            string faltantes = cambio != null && cambio.NoDisponibles.Count > 0
+                ? $" Eso sí, no tenemos {string.Join(" ni ", cambio.NoDisponibles)}."
+                : string.Empty;
+            string avisoMetodo = metodoNoAceptado != null
+                ? $" Por ahora no recibimos {metodoNoAceptado}; puedes pagar con {OpcionesPago()}."
+                : string.Empty;
+
+            if (quiereEnviar)
+            {
+                if (final.Count == 0)
+                    return new RespuestaBot("Todavía no tienes nada en el pedido. Dime qué se te antoja y te lo armo.", new(), nota, "local", cambio?.Cantidades, false, metodoDicho);
+
+                if (metodo == null)
+                    return new RespuestaBot($"{ResumirPedido(final, menu)}{faltantes}{avisoMetodo} {PreguntaPago} Puede ser {OpcionesPago()}.{avisoNota}",
+                        new(), nota, "local", cambio?.Cantidades, false, null);
+
+                return new RespuestaBot(
+                    $"¡Hecho! Le envío al mesero: {ListarPedido(final, menu)}. Total {Pesos(TotalPedido(final, menu))}, pagas con {NombrePago(metodo)}.{faltantes}{avisoNota} En un momento lo confirma.",
+                    new(), nota, "local", cambio?.Cantidades, true, metodoDicho);
+            }
+
             if (cambio != null)
             {
-                string resumen = ResumirPedido(cambio.Cantidades, menu);
-                if (cambio.NoDisponibles.Count > 0)
-                {
-                    string faltan = string.Join(" ni ", cambio.NoDisponibles);
-                    resumen += $" Eso sí, no tenemos {faltan}. ¿Te provoca otra cosa de la carta?";
-                }
-                return new RespuestaBot(resumen + avisoNota, new(), nota, "local", cambio.Cantidades);
+                string resumen = ResumirPedido(cambio.Cantidades, menu) + faltantes;
+                if (cambio.NoDisponibles.Count > 0) resumen += " ¿Te provoca otra cosa de la carta?";
+                else if (cambio.Cantidades.Count > 0) resumen += " " + PreguntaEnvio;
+                return new RespuestaBot(resumen + avisoMetodo + avisoNota, new(), nota, "local", cambio.Cantidades, false, metodoDicho);
+            }
+
+            if (metodoDicho != null || metodoNoAceptado != null)
+            {
+                string texto2 = metodoDicho == null
+                    ? avisoMetodo.Trim()
+                    : actual.Count > 0
+                        ? $"Anotado, pagas con {NombrePago(metodoDicho)}. {PreguntaEnvio}"
+                        : $"Anotado, pagas con {NombrePago(metodoDicho)}. Ahora dime qué quieres pedir.";
+                return new RespuestaBot(texto2, new(), nota, "local", null, false, metodoDicho);
             }
 
             if (InterpreteColoquial.EsSaludo(texto))

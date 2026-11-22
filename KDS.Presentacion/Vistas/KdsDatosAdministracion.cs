@@ -11,6 +11,11 @@ namespace KDS.PRE.Vistas
         public int NumeroMesa { get; set; }
         public DateTime FechaHora { get; set; }
         public string Estado { get; set; } = string.Empty;
+        public string MetodoPago { get; set; } = string.Empty;
+        public string EstadoPago { get; set; } = "Pendiente";
+        public string ReferenciaPago { get; set; } = string.Empty;
+        public int Unidades => Detalles.Sum(d => d.Cantidad);
+        public string Pago => string.IsNullOrEmpty(MetodoPago) ? EstadoPago : $"{MetodoPago} · {EstadoPago}";
         public List<DetallePedidoModel> Detalles { get; set; } = new();
         public decimal Total => Detalles.Sum(d => d.PrecioUnitario * d.Cantidad);
         public string Productos => Detalles.Count == 0
@@ -22,22 +27,29 @@ namespace KDS.PRE.Vistas
     {
         public static readonly string[] RolesUsuario = { "Mesero", "Cocinero", "Admin" };
 
-        public static List<PedidoResumen> ObtenerTodosLosPedidos(string? estado)
+        public static List<PedidoResumen> ObtenerTodosLosPedidos(string? estado, DateTime? desde = null, int? mesa = null, string? estadoPago = null)
         {
             var pedidos = new Dictionary<int, PedidoResumen>();
             using var con = AbrirConexion();
 
             string sql = @"
                 SELECT p.id_pedido, p.numero_mesa, p.fecha_hora, p.estado,
+                       p.metodo_pago, p.estado_pago, p.referencia_pago,
                        d.id_detalle, d.id_plato, pl.nombre AS nombre_plato, pl.precio, d.cantidad, d.notas_especiales
                 FROM pedidos p
                 LEFT JOIN detalle_pedidos d ON p.id_pedido = d.id_pedido
                 LEFT JOIN platos pl ON d.id_plato = pl.id_plato
                 WHERE (@estado IS NULL OR p.estado = @estado)
+                  AND (@desde IS NULL OR p.fecha_hora >= @desde)
+                  AND (@mesa IS NULL OR p.numero_mesa = @mesa)
+                  AND (@estadoPago IS NULL OR p.estado_pago = @estadoPago)
                 ORDER BY p.id_pedido DESC, d.id_detalle ASC;";
 
             using var cmd = new NpgsqlCommand(sql, con);
             cmd.Parameters.Add(new NpgsqlParameter("@estado", NpgsqlTypes.NpgsqlDbType.Varchar) { Value = (object?)estado ?? DBNull.Value });
+            cmd.Parameters.Add(new NpgsqlParameter("@desde", NpgsqlTypes.NpgsqlDbType.Timestamp) { Value = (object?)desde ?? DBNull.Value });
+            cmd.Parameters.Add(new NpgsqlParameter("@mesa", NpgsqlTypes.NpgsqlDbType.Integer) { Value = (object?)mesa ?? DBNull.Value });
+            cmd.Parameters.Add(new NpgsqlParameter("@estadoPago", NpgsqlTypes.NpgsqlDbType.Varchar) { Value = (object?)estadoPago ?? DBNull.Value });
             using var dr = cmd.ExecuteReader();
 
             while (dr.Read())
@@ -50,7 +62,10 @@ namespace KDS.PRE.Vistas
                         IdPedido = id,
                         NumeroMesa = Convert.ToInt32(dr["numero_mesa"]),
                         FechaHora = Convert.ToDateTime(dr["fecha_hora"]),
-                        Estado = dr["estado"].ToString() ?? string.Empty
+                        Estado = dr["estado"].ToString() ?? string.Empty,
+                        MetodoPago = dr["metodo_pago"] is DBNull ? string.Empty : dr["metodo_pago"].ToString() ?? string.Empty,
+                        EstadoPago = dr["estado_pago"] is DBNull ? "Pendiente" : dr["estado_pago"].ToString() ?? "Pendiente",
+                        ReferenciaPago = dr["referencia_pago"] is DBNull ? string.Empty : dr["referencia_pago"].ToString() ?? string.Empty
                     };
                     pedidos[id] = pedido;
                 }
@@ -77,6 +92,21 @@ namespace KDS.PRE.Vistas
             using var con = AbrirConexion();
             using var cmd = new NpgsqlCommand("UPDATE pedidos SET numero_mesa = @mesa WHERE id_pedido = @id;", con);
             cmd.Parameters.AddWithValue("@mesa", mesa);
+            cmd.Parameters.AddWithValue("@id", idPedido);
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        public static bool ActualizarPagoPedido(int idPedido, string? metodo, string estadoPago, string referencia)
+        {
+            using var con = AbrirConexion();
+            const string sql = @"UPDATE pedidos SET metodo_pago = @metodo, estado_pago = @estadoPago, referencia_pago = @referencia
+                                 WHERE id_pedido = @id;";
+            using var cmd = new NpgsqlCommand(sql, con);
+            cmd.Parameters.Add(new NpgsqlParameter("@metodo", NpgsqlTypes.NpgsqlDbType.Varchar)
+                { Value = string.IsNullOrWhiteSpace(metodo) ? DBNull.Value : metodo });
+            cmd.Parameters.AddWithValue("@estadoPago", estadoPago);
+            cmd.Parameters.Add(new NpgsqlParameter("@referencia", NpgsqlTypes.NpgsqlDbType.Varchar)
+                { Value = string.IsNullOrWhiteSpace(referencia) ? DBNull.Value : referencia.Trim() });
             cmd.Parameters.AddWithValue("@id", idPedido);
             return cmd.ExecuteNonQuery() > 0;
         }

@@ -53,7 +53,7 @@ namespace KDS.PRE.Portal
             };
             solicitud.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             solicitud.Content.Headers.ContentEncoding.Add("aes128gcm");
-            solicitud.Headers.TryAddWithoutValidation("TTL", "3600");
+            solicitud.Headers.TryAddWithoutValidation("TTL", "86400");
             solicitud.Headers.TryAddWithoutValidation("Urgency", "high");
             solicitud.Headers.TryAddWithoutValidation("Authorization", $"vapid t={FirmarJwt(destino.Endpoint)}, k={claves.Publica}");
 
