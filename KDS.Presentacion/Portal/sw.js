@@ -14,16 +14,17 @@ self.addEventListener("push", evento => {
     const ventanas = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     ventanas.forEach(v => v.postMessage({ tipo: "estado", aviso }));
 
-    await self.registration.showNotification(aviso.titulo, {
-      body: aviso.cuerpo,
-      icon: "/icono.svg",
-      badge: "/icono.svg",
-      tag: `pedido-${aviso.pedido}`,
-      renotify: true,
-      requireInteraction: listo,
-      vibrate: listo ? VIBRACION_LISTO : VIBRACION_SUAVE,
-      data: { url: aviso.url, pedido: aviso.pedido }
-    });
+      await self.registration.showNotification(aviso.titulo, {
+          body: aviso.cuerpo,
+          icon: "/icono.svg",
+          badge: "/icono.svg",
+          tag: `pedido-${aviso.pedido}-${aviso.tipo}`,
+          renotify: true,
+          silent: false,
+          requireInteraction: listo,
+          vibrate: listo ? VIBRACION_LISTO : VIBRACION_SUAVE,
+          data: { url: aviso.url, pedido: aviso.pedido }
+      });
   })());
 });
 
