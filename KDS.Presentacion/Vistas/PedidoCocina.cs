@@ -23,6 +23,23 @@ public sealed class PedidoCocina : INotifyPropertyChanged
     public DateTime Fecha { get; }
     public IReadOnlyList<LineaComanda> Productos { get; }
     public string Observaciones { get; }
+    public string MetodoPago { get; init; } = string.Empty;
+    public bool Pagado { get; init; }
+
+    public string PagoTexto =>
+        MetodoPago.Length == 0
+            ? string.Empty
+            : $"{IconoPago} Paga con {MetodoPago}{(Pagado ? " · YA PAGÓ" : MetodoPago is "Tarjeta" ? " · llevar datáfono" : MetodoPago is "Efectivo" ? " · cobrar al entregar" : " · verificar transferencia")}";
+
+    public string ColorPago => Pagado ? "#39D98A" : "#F5A623";
+
+    private string IconoPago => MetodoPago switch
+    {
+        "Efectivo" => "💵",
+        "Tarjeta" => "💳",
+        "Transferencia" => "🏦",
+        _ => "📱"
+    };
 
     public EstadoPedido Estado { get; private set; } =
         EstadoPedido.Pendiente;

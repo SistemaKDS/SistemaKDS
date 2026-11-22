@@ -126,6 +126,15 @@ namespace KDS.PRE.Portal
                     case ("GET", "/api/menu"):
                         await ResponderJson(ctx, 200, ArmarMenu());
                         break;
+                    case ("GET", "/api/pagos"):
+                        await ResponderJson(ctx, 200, MetodosPago.Disponibles().Select(m => new
+                        {
+                            id = m.Id, nombre = m.Nombre, icono = m.Icono, instrucciones = m.Instrucciones, pideReferencia = m.PideReferencia
+                        }));
+                        break;
+                    case ("POST", "/api/push/recogido"):
+                        await MarcarRecogido(ctx);
+                        break;
                     case ("GET", "/api/info"):
                         await ResponderJson(ctx, 200, new { iaClaude = asistente.UsaClaude });
                         break;
@@ -195,7 +204,8 @@ namespace KDS.PRE.Portal
                 .Where(c => c.Cantidad > 0)
                 .GroupBy(c => c.IdPlato)
                 .ToDictionary(g => g.Key, g => Math.Min(20, g.Sum(c => c.Cantidad)));
-            var r = await asistente.ResponderAsync(mensaje, historial, menu, mesa, carrito);
+            string? metodoActual = MetodosPago.Buscar(datos.MetodoPago)?.Id;
+            var r = await asistente.ResponderAsync(mensaje, historial, menu, mesa, carrito, metodoActual);
 
             await ResponderJson(ctx, 200, new
             {
@@ -203,7 +213,9 @@ namespace KDS.PRE.Portal
                 nota = r.Nota,
                 fuente = r.Fuente,
                 sugeridos = r.Sugeridos.Select(p => new { id = p.IdPlato, nombre = p.Nombre, precio = p.Precio }),
-                pedido = r.Pedido?.Select(c => new { id = c.Key, cantidad = c.Value })
+                pedido = r.Pedido?.Select(c => new { id = c.Key, cantidad = c.Value }),
+                enviarPedido = r.EnviarPedido,
+                metodoPago = r.MetodoPago
             });
         }
 
@@ -217,8 +229,24 @@ namespace KDS.PRE.Portal
                 return;
             }
 
+            var metodo = MetodosPago.Buscar(datos.MetodoPago);
+            if (metodo == null)
+            {
+                await ResponderJson(ctx, 400, new { error = "Elige cómo vas a pagar antes de enviar el pedido." });
+                return;
+            }
+
+            string referencia = (datos.ReferenciaPago ?? string.Empty).Trim();
+            if (referencia.Length > 60) referencia = referencia[..60];
+
             var menu = pedidoBll.ObtenerMenu().ToDictionary(p => p.IdPlato);
-            var pedido = new PedidoModel { NumeroMesa = datos.Mesa };
+            var pedido = new PedidoModel
+            {
+                NumeroMesa = datos.Mesa,
+                MetodoPago = metodo.Id,
+                EstadoPago = "Pendiente",
+                ReferenciaPago = metodo.PideReferencia ? referencia : null
+            };
 
             foreach (var item in datos.Items ?? new())
             {
@@ -254,8 +282,17 @@ namespace KDS.PRE.Portal
             await ResponderJson(ctx, 200, new
             {
                 idPedido = pedido.IdPedido,
+                total = pedido.Detalles.Sum(d => d.PrecioUnitario * d.Cantidad),
+                metodoPago = metodo.Id,
                 mensaje = $"Listo, tu pedido de la mesa {pedido.NumeroMesa} le llegó al mesero."
             });
+        }
+
+        private async Task MarcarRecogido(HttpListenerContext ctx)
+        {
+            var datos = await LeerCuerpo<PeticionSuscripcion>(ctx);
+            if (datos != null && datos.IdPedido > 0) beeper.Olvidar(datos.IdPedido);
+            await ResponderJson(ctx, 200, new { ok = true });
         }
 
         private async Task ConsultarEstado(HttpListenerContext ctx)
@@ -355,6 +392,7 @@ namespace KDS.PRE.Portal
             public int Mesa { get; set; }
             public List<ItemHistorial?>? Historial { get; set; }
             public List<ItemSolicitud?>? Carrito { get; set; }
+            public string? MetodoPago { get; set; }
         }
 
         private class ItemHistorial
@@ -366,6 +404,8 @@ namespace KDS.PRE.Portal
         private class PeticionSolicitud
         {
             public int Mesa { get; set; }
+            public string? MetodoPago { get; set; }
+            public string? ReferenciaPago { get; set; }
             public List<ItemSolicitud?>? Items { get; set; }
         }
 

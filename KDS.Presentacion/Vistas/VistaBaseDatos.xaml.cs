@@ -11,12 +11,15 @@ namespace KDS.PRE.Vistas
     public partial class VistaBaseDatos : Window
     {
         private const string TodosLosEstados = "Todos";
+        private static readonly System.Globalization.CultureInfo Cultura = System.Globalization.CultureInfo.GetCultureInfo("es-CO");
+        private static readonly string[] Periodos = { "Hoy", "Últimos 7 días", "Este mes", "Todo" };
 
         private readonly KdsAdministracionBLL bll = new();
         private readonly UsuarioModel dueno;
         private readonly DispatcherTimer refresco = new() { Interval = TimeSpan.FromSeconds(5) };
         private PedidoResumen? pedidoActual;
         private bool cargando;
+        private bool creandoPedido;
 
         public bool HuboCambiosEnPlatos { get; private set; }
 
@@ -30,10 +33,16 @@ namespace KDS.PRE.Vistas
             CmbFiltroEstado.ItemsSource = new[] { TodosLosEstados }.Concat(KdsAdministracionBLL.Estados).ToList();
             CmbFiltroEstado.SelectedIndex = 0;
             CmbEstado.ItemsSource = KdsAdministracionBLL.Estados;
+            CmbFiltroPeriodo.ItemsSource = Periodos;
+            CmbFiltroPeriodo.SelectedIndex = Periodos.Length - 1;
+            CmbFiltroPago.ItemsSource = new[] { TodosLosEstados }.Concat(KdsAdministracionBLL.EstadosPago).ToList();
+            CmbFiltroPago.SelectedIndex = 0;
+            CmbMetodoPago.ItemsSource = new[] { KdsAdministracionBLL.SinMetodo }.Concat(KdsAdministracionBLL.MetodosPago).ToList();
+            CmbEstadoPago.ItemsSource = KdsAdministracionBLL.EstadosPago;
             CmbRol.ItemsSource = KdsDatosService.RolesUsuario;
             cargando = false;
 
-            refresco.Tick += (_, _) => CargarPedidos(silencioso: true);
+            refresco.Tick += (_, _) => { if (!creandoPedido) CargarPedidos(silencioso: true); };
             Loaded += (_, _) =>
             {
                 CargarPlatos();
@@ -66,7 +75,7 @@ namespace KDS.PRE.Vistas
             List<PedidoResumen> pedidos;
             try
             {
-                pedidos = bll.ListarPedidos(CmbFiltroEstado.SelectedItem as string);
+                pedidos = bll.ListarPedidos(CmbFiltroEstado.SelectedItem as string, DesdeFiltro(), MesaFiltro(), CmbFiltroPago.SelectedItem as string);
             }
             catch (Exception ex)
             {
@@ -84,7 +93,7 @@ namespace KDS.PRE.Vistas
             GrillaPedidos.SelectedItem = elegido;
             cargando = false;
 
-            TextoCantidadPedidos.Text = pedidos.Count == 1 ? "1 pedido" : $"{pedidos.Count} pedidos";
+            MostrarTotales(pedidos);
 
             bool mismoPedido = elegido != null && pedidoActual != null && elegido.IdPedido == pedidoActual.IdPedido;
             if (silencioso && mismoPedido)
@@ -95,10 +104,51 @@ namespace KDS.PRE.Vistas
                 GrillaDetalle.SelectedItem = elegido.Detalles.FirstOrDefault(d => d.IdDetalle == detalleElegido);
                 TituloPedido.Text = $"PEDIDO #{elegido.IdPedido} · $ {elegido.Total:N0}";
             }
-            else
+            else if (!creandoPedido)
             {
                 MostrarPedido(elegido);
             }
+        }
+
+        private DateTime? DesdeFiltro() => (CmbFiltroPeriodo.SelectedItem as string) switch
+        {
+            "Hoy" => DateTime.Today,
+            "Últimos 7 días" => DateTime.Today.AddDays(-6),
+            "Este mes" => new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1),
+            _ => null
+        };
+
+        private int? MesaFiltro() => int.TryParse(TxtFiltroMesa.Text.Trim(), out int m) && m > 0 ? m : null;
+
+        private static string Pesos(decimal valor) => "$ " + valor.ToString("N0", Cultura);
+
+        private void MostrarTotales(List<PedidoResumen> pedidos)
+        {
+            decimal ventas = pedidos.Sum(p => p.Total);
+            decimal cobrado = pedidos.Where(p => p.EstadoPago == "Pagado").Sum(p => p.Total);
+
+            TotalPedidos.Text = pedidos.Count.ToString("N0", Cultura);
+            int unidades = pedidos.Sum(p => p.Unidades);
+            TotalUnidades.Text = unidades == 1 ? "1 producto" : $"{unidades:N0} productos";
+            TotalVentas.Text = Pesos(ventas);
+            TotalPromedio.Text = "Promedio " + Pesos(pedidos.Count == 0 ? 0 : Math.Round(ventas / pedidos.Count));
+            TotalCobrado.Text = Pesos(cobrado);
+            TotalPorCobrar.Text = Pesos(ventas - cobrado);
+
+            var porMetodo = pedidos.Where(p => p.EstadoPago == "Pagado" && p.MetodoPago.Length > 0)
+                .GroupBy(p => p.MetodoPago)
+                .Select(g => $"{g.Key} {Pesos(g.Sum(p => p.Total))}")
+                .ToList();
+            TotalPorMetodo.Text = porMetodo.Count == 0 ? "Sin pagos registrados" : string.Join(" · ", porMetodo);
+            TotalPorMetodo.ToolTip = string.Join("\n", porMetodo);
+
+            var porEstado = KdsAdministracionBLL.Estados
+                .Select(e => (Estado: e, Cantidad: pedidos.Count(p => p.Estado == e)))
+                .Where(x => x.Cantidad > 0)
+                .Select(x => $"{x.Estado} {x.Cantidad}")
+                .ToList();
+            TotalPorEstado.Text = porEstado.Count == 0 ? "Sin pedidos" : string.Join(" · ", porEstado);
+            TotalPorEstado.ToolTip = string.Join("\n", porEstado);
         }
 
         private static bool MismoContenido(List<PedidoResumen> a, List<PedidoResumen> b)
@@ -108,6 +158,7 @@ namespace KDS.PRE.Vistas
             {
                 if (a[i].IdPedido != b[i].IdPedido || a[i].NumeroMesa != b[i].NumeroMesa ||
                     a[i].Estado != b[i].Estado || a[i].Productos != b[i].Productos ||
+                    a[i].MetodoPago != b[i].MetodoPago || a[i].EstadoPago != b[i].EstadoPago || a[i].ReferenciaPago != b[i].ReferenciaPago ||
                     string.Join("|", a[i].Detalles.Select(d => d.NotasEspeciales)) != string.Join("|", b[i].Detalles.Select(d => d.NotasEspeciales)))
                     return false;
             }
@@ -116,6 +167,7 @@ namespace KDS.PRE.Vistas
 
         private void MostrarPedido(PedidoResumen? pedido)
         {
+            if (pedido != null && creandoPedido) SalirDeNuevoPedido();
             pedidoActual = pedido;
             bool hay = pedido != null;
 
@@ -128,6 +180,9 @@ namespace KDS.PRE.Vistas
                 TituloPedido.Text = "SELECCIONA UN PEDIDO";
                 TxtMesa.Text = string.Empty;
                 CmbEstado.SelectedItem = null;
+                CmbMetodoPago.SelectedItem = null;
+                CmbEstadoPago.SelectedItem = null;
+                TxtReferenciaPago.Text = string.Empty;
                 GrillaDetalle.ItemsSource = null;
             }
             else
@@ -135,6 +190,9 @@ namespace KDS.PRE.Vistas
                 TituloPedido.Text = $"PEDIDO #{pedido.IdPedido} · $ {pedido.Total:N0}";
                 TxtMesa.Text = pedido.NumeroMesa.ToString();
                 CmbEstado.SelectedItem = pedido.Estado;
+                CmbMetodoPago.SelectedItem = pedido.MetodoPago.Length == 0 ? KdsAdministracionBLL.SinMetodo : pedido.MetodoPago;
+                CmbEstadoPago.SelectedItem = pedido.EstadoPago;
+                TxtReferenciaPago.Text = pedido.ReferenciaPago;
                 GrillaDetalle.ItemsSource = pedido.Detalles;
             }
             MostrarProducto(null);
@@ -214,7 +272,87 @@ namespace KDS.PRE.Vistas
             Avisar("Datos actualizados.");
         }
 
-        private void CmbFiltroEstado_SelectionChanged(object sender, SelectionChangedEventArgs e) => CargarPedidos();
+        private void Filtro_SelectionChanged(object sender, SelectionChangedEventArgs e) => CargarPedidos();
+
+        private void TxtFiltroMesa_TextChanged(object sender, TextChangedEventArgs e) => CargarPedidos();
+
+        private void BtnNuevoPedido_Click(object sender, RoutedEventArgs e)
+        {
+            Pestanas.SelectedIndex = 0;
+            cargando = true;
+            GrillaPedidos.SelectedItem = null;
+            cargando = false;
+            MostrarPedido(null);
+
+            creandoPedido = true;
+            TituloPedido.Text = "NUEVO PEDIDO";
+            TxtMesa.Text = MesaFiltro()?.ToString() ?? string.Empty;
+            CmbEstado.SelectedItem = "Pendiente";
+            CmbMetodoPago.SelectedItem = KdsAdministracionBLL.SinMetodo;
+            CmbEstadoPago.SelectedItem = "Pendiente";
+            TxtReferenciaPago.Text = string.Empty;
+            TxtCantidad.Text = "1";
+            TxtNota.Text = string.Empty;
+
+            BotonesPedido.Visibility = Visibility.Collapsed;
+            EtiquetaDetalle.Visibility = Visibility.Collapsed;
+            CajaDetalle.Visibility = Visibility.Collapsed;
+            BotonesProducto.Visibility = Visibility.Collapsed;
+            BtnAgregarProducto.Visibility = Visibility.Collapsed;
+            AyudaNuevoPedido.Visibility = Visibility.Visible;
+            BtnCrearPedido.Visibility = Visibility.Visible;
+            BtnCancelarNuevo.Visibility = Visibility.Visible;
+            TxtMesa.Focus();
+        }
+
+        private void SalirDeNuevoPedido()
+        {
+            creandoPedido = false;
+            BotonesPedido.Visibility = Visibility.Visible;
+            EtiquetaDetalle.Visibility = Visibility.Visible;
+            CajaDetalle.Visibility = Visibility.Visible;
+            BotonesProducto.Visibility = Visibility.Visible;
+            BtnAgregarProducto.Visibility = Visibility.Visible;
+            AyudaNuevoPedido.Visibility = Visibility.Collapsed;
+            BtnCrearPedido.Visibility = Visibility.Collapsed;
+            BtnCancelarNuevo.Visibility = Visibility.Collapsed;
+        }
+
+        private void BtnCancelarNuevo_Click(object sender, RoutedEventArgs e)
+        {
+            SalirDeNuevoPedido();
+            MostrarPedido(null);
+        }
+
+        private void BtnCrearPedido_Click(object sender, RoutedEventArgs e)
+        {
+            var plato = CmbPlato.SelectedItem as PlatoModel;
+            string r = bll.CrearPedido(
+                LeerNumero(TxtMesa),
+                CmbEstado.SelectedItem as string ?? string.Empty,
+                CmbMetodoPago.SelectedItem as string,
+                CmbEstadoPago.SelectedItem as string ?? "Pendiente",
+                TxtReferenciaPago.Text.Trim(),
+                plato,
+                LeerNumero(TxtCantidad),
+                TxtNota.Text.Trim(),
+                out int idNuevo);
+
+            if (!Resultado(r, $"Pedido #{idNuevo} creado. Ahora puedes agregarle más productos."))
+                return;
+
+            SalirDeNuevoPedido();
+            pedidoActual = null;
+            cargando = true;
+            if (CmbFiltroEstado.SelectedItem is string filtro && filtro != TodosLosEstados && filtro != (CmbEstado.SelectedItem as string))
+                CmbFiltroEstado.SelectedIndex = 0;
+            if (CmbFiltroPago.SelectedItem is string filtroPago && filtroPago != TodosLosEstados && filtroPago != (CmbEstadoPago.SelectedItem as string))
+                CmbFiltroPago.SelectedIndex = 0;
+            if (MesaFiltro() is int mesaFiltro && mesaFiltro != LeerNumero(TxtMesa))
+                TxtFiltroMesa.Text = string.Empty;
+            cargando = false;
+            CargarPedidos(seleccionar: idNuevo);
+        }
 
         private void GrillaPedidos_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -246,7 +384,9 @@ namespace KDS.PRE.Vistas
             if (pedidoActual == null) return;
             int id = pedidoActual.IdPedido;
             string estado = CmbEstado.SelectedItem as string ?? string.Empty;
-            if (Resultado(bll.GuardarPedido(pedidoActual, LeerNumero(TxtMesa), estado), $"Pedido #{id} guardado."))
+            string r = bll.GuardarPedido(pedidoActual, LeerNumero(TxtMesa), estado,
+                CmbMetodoPago.SelectedItem as string, CmbEstadoPago.SelectedItem as string ?? "Pendiente", TxtReferenciaPago.Text.Trim());
+            if (Resultado(r, $"Pedido #{id} guardado."))
             {
                 pedidoActual = null;
                 CargarPedidos(seleccionar: id);

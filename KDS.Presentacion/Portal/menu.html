@@ -82,6 +82,17 @@
   .total span:last-child { color: var(--naranja); }
   .btn-enviar { width: 100%; background: var(--naranja); color: #111; font-weight: 800; border-radius: 10px; padding: 15px; font-size: 15px; }
   .btn-enviar:disabled { opacity: .5; }
+  .pago-titulo { font-size: 13px; font-weight: 700; color: var(--suave); margin: 14px 0 8px; text-transform: uppercase; letter-spacing: .04em; }
+  .pago-titulo.falta { color: var(--rojo); animation: latido .8s 3; }
+  .pagos { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+  .pagos button { background: var(--panel-2); color: var(--texto); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 8px; font-size: 13px; font-weight: 600; text-align: left; }
+  .pagos button.elegido { border-color: var(--naranja); background: var(--naranja-osc); color: var(--naranja); }
+  .pago-info { font-size: 13px; color: var(--suave); line-height: 1.4; margin: 8px 0 0; }
+  .pago-info:empty { display: none; }
+  #referenciaPago { width: 100%; margin: 8px 0 4px; background: #111; color: var(--texto); border: 1px solid var(--borde); border-radius: 8px; padding: 10px; font: inherit; font-size: 13px; }
+  .pago-seguro { font-size: 11px; color: var(--suave); margin: 6px 0 10px; }
+  .beeper .pago-beeper { color: var(--naranja); font-size: 13px; font-weight: 600; margin: -8px 0 16px; }
+  .beeper .pago-beeper:empty { display: none; }
   .chat { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 200px; }
   .burbuja { max-width: 86%; padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; }
   .burbuja.cliente { align-self: flex-end; background: var(--naranja); color: #111; border-bottom-right-radius: 4px; }
@@ -208,6 +219,11 @@
   <div class="hoja-cabeza"><h2>Tu pedido</h2><button class="cerrar" data-cerrar type="button">×</button></div>
   <div class="lista" id="listaCarrito"></div>
   <div class="total"><span>Total</span><span id="totalCarrito">$0</span></div>
+  <div class="pago-titulo" id="pagoTitulo">¿Cómo vas a pagar?</div>
+  <div class="pagos" id="pagos"></div>
+  <p class="pago-info" id="pagoInfo"></p>
+  <input id="referenciaPago" maxlength="60" autocomplete="off" placeholder="N.º de la transacción o comprobante (opcional)" hidden>
+  <p class="pago-seguro">🔒 Nunca te pediremos datos de tarjeta ni claves por aquí.</p>
   <button class="btn-enviar" id="enviarPedido" type="button">Enviar solicitud al mesero</button>
 </section>
 
@@ -242,6 +258,7 @@
   <div class="pager"><div class="icono-pager" id="beeperIcono">🕐</div><div class="num" id="beeperNumero">PEDIDO #—</div></div>
   <h2 id="beeperTitulo">Pedido enviado</h2>
   <p class="detalle" id="beeperDetalle">Ya puedes alejarte. Cuando la cocina termine, te vibra el celular.</p>
+  <p class="pago-beeper" id="beeperPago"></p>
   <div class="pasos">
     <div class="paso" data-paso="Solicitado">Enviado</div>
     <div class="paso" data-paso="Pendiente">Aprobado</div>
@@ -277,8 +294,15 @@ const estado = {
   quierePantalla: false,
   audio: null,
   registro: null,
-  notaBot: ""
+  notaBot: "",
+  pagos: [],
+  metodoPago: leerTexto("kdsPago"),
+  enviando: false
 };
+
+function leerTexto(clave) {
+  try { return localStorage.getItem(clave) || ""; } catch (e) { return ""; }
+}
 
 function leerSesion(clave) {
   try { return Number(localStorage.getItem(clave)) || 0; } catch (e) { return 0; }
@@ -334,6 +358,41 @@ async function cargarMenu() {
   } catch (e) {
     $("platos").replaceChildren(elemento("p", "vacio", e.message));
   }
+}
+
+async function cargarPagos() {
+  try {
+    estado.pagos = await pedirJson("/api/pagos");
+  } catch (e) {
+    estado.pagos = [{ id: "Efectivo", nombre: "Efectivo", icono: "💵", instrucciones: "Pagas en efectivo al mesero.", pideReferencia: false }];
+  }
+  if (!estado.pagos.some(m => m.id === estado.metodoPago)) estado.metodoPago = "";
+  pintarPagos();
+}
+
+function elegirPago(id, silencioso) {
+  const metodo = estado.pagos.find(m => m.id === id);
+  if (!metodo) return false;
+  estado.metodoPago = metodo.id;
+  guardarSesion("kdsPago", metodo.id);
+  pintarPagos();
+  if (!silencioso) avisar(`Pagas con ${metodo.nombre}`);
+  return true;
+}
+
+function pintarPagos() {
+  const caja = $("pagos");
+  caja.replaceChildren();
+  estado.pagos.forEach(m => {
+    const b = elemento("button", m.id === estado.metodoPago ? "elegido" : "", `${m.icono} ${m.nombre}`);
+    b.type = "button";
+    b.onclick = () => elegirPago(m.id);
+    caja.appendChild(b);
+  });
+  const elegido = estado.pagos.find(m => m.id === estado.metodoPago);
+  $("pagoInfo").textContent = elegido ? elegido.instrucciones : "";
+  $("referenciaPago").hidden = !(elegido && elegido.pideReferencia);
+  if (elegido) $("pagoTitulo").classList.remove("falta");
 }
 
 function pintarTabs() {
@@ -438,12 +497,28 @@ function actualizarCarrito() {
   pintarPlatos();
 }
 
-async function enviarPedido() {
-  if (!estado.mesa) { abrir("hojaMesa"); avisar("Primero dinos en qué mesa estás"); return; }
-  if (estado.carrito.size === 0) return;
+function pedirPermisoAvisos() {
+  try {
+    if (pushDisponible() && Notification.permission === "default") return Notification.requestPermission();
+  } catch (e) {}
+  return Promise.resolve(window.Notification ? Notification.permission : "denied");
+}
+
+async function enviarPedido(desdeBot) {
+  if (estado.enviando) return false;
+  if (!estado.mesa) { abrir("hojaMesa"); avisar("Primero dinos en qué mesa estás"); return false; }
+  if (estado.carrito.size === 0) return false;
+  if (!estado.metodoPago) {
+    abrir("hojaCarrito");
+    $("pagoTitulo").classList.add("falta");
+    avisar("Elige cómo vas a pagar");
+    return false;
+  }
 
   prepararSonido();
+  const permiso = desdeBot ? Promise.resolve(window.Notification ? Notification.permission : "denied") : pedirPermisoAvisos();
   const boton = $("enviarPedido");
+  estado.enviando = true;
   boton.disabled = true;
   boton.textContent = "Enviando…";
 
@@ -452,21 +527,30 @@ async function enviarPedido() {
     const r = await pedirJson("/api/solicitud", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mesa: estado.mesa, items })
+      body: JSON.stringify({ mesa: estado.mesa, items, metodoPago: estado.metodoPago, referenciaPago: $("referenciaPago").value.trim() })
     });
 
     estado.carrito.clear();
     estado.pedidoActivo = r.idPedido;
     estado.ultimoEstado = "";
     guardarSesion("kdsPedido", r.idPedido);
+    const metodo = estado.pagos.find(m => m.id === r.metodoPago);
+    const textoPago = `${metodo ? metodo.icono + " " + metodo.nombre : r.metodoPago} · ${pesos.format(r.total || 0)}`;
+    guardarSesion("kdsPagoPedido", textoPago);
+    $("beeperPago").textContent = textoPago;
+    $("referenciaPago").value = "";
     actualizarCarrito();
     cerrarTodo();
     mostrarEstado("Solicitado");
     abrirBeeper();
     avisar(r.mensaje);
+    permiso.then(p => { if (p === "granted") activarAvisos(true); });
+    return true;
   } catch (e) {
     avisar(e.message);
+    return false;
   } finally {
+    estado.enviando = false;
     boton.textContent = "Enviar solicitud al mesero";
     boton.disabled = estado.carrito.size === 0;
   }
@@ -525,6 +609,7 @@ function mostrarEstado(valor) {
   if (valor === "Entregado" || valor === "Rechazado") {
     detenerAlarma();
     guardarSesion("kdsPedido", null);
+    guardarSesion("kdsPagoPedido", null);
     estado.pedidoActivo = 0;
     soltarPantalla();
   }
@@ -618,7 +703,14 @@ function detenerAlarma() {
 }
 
 function yaLoRecogi() {
-  if (estado.pedidoActivo) guardarSesion(`kdsRecogido${estado.pedidoActivo}`, 1);
+  if (estado.pedidoActivo) {
+    guardarSesion(`kdsRecogido${estado.pedidoActivo}`, 1);
+    fetch("/api/push/recogido", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idPedido: estado.pedidoActivo })
+    }).catch(() => {});
+  }
   detenerAlarma();
   soltarPantalla();
   $("beeperDetalle").textContent = "¡Que lo disfrutes! Si quieres algo más, pide desde el menú.";
@@ -641,18 +733,20 @@ async function registrarServiceWorker() {
     navigator.serviceWorker.addEventListener("message", e => {
       if (!e.data) return;
       if (e.data.tipo === "abrir-beeper") abrirBeeper();
+      if (e.data.tipo === "recogido" && e.data.pedido === estado.pedidoActivo) { yaLoRecogi(); return; }
       revisarEstado();
     });
   } catch (e) {}
 }
 
-async function activarAvisos() {
+async function activarAvisos(silencioso) {
+  silencioso = silencioso === true;
   prepararSonido();
   const boton = $("activarAvisos");
 
   if (!pushDisponible()) {
     actualizarBotonesBeeper();
-    avisar("Este navegador no permite avisos, deja la página abierta y te avisamos igual");
+    if (!silencioso) avisar("Este navegador no permite avisos, deja la página abierta y te avisamos igual");
     return;
   }
 
@@ -680,9 +774,9 @@ async function activarAvisos() {
 
     guardarSesion(`kdsAvisos${estado.pedidoActivo}`, 1);
     vibrar([150, 80, 150]);
-    avisar("Listo, te avisamos aunque cierres la página");
+    avisar(silencioso ? "🔔 Te avisamos con vibración aunque bloquees el celular" : "Listo, te avisamos aunque cierres la página");
   } catch (e) {
-    avisar(e.message);
+    if (!silencioso) avisar(e.message);
   } finally {
     boton.disabled = false;
     actualizarBotonesBeeper();
@@ -1000,16 +1094,34 @@ async function preguntar(texto, porVoz) {
         mensaje: texto,
         mesa: estado.mesa,
         historial,
-        carrito: Array.from(estado.carrito.values()).map(l => ({ idPlato: l.plato.id, cantidad: l.cantidad }))
+        carrito: Array.from(estado.carrito.values()).map(l => ({ idPlato: l.plato.id, cantidad: l.cantidad })),
+        metodoPago: estado.metodoPago
       })
     });
     espera.remove();
     if (r.nota) estado.notaBot = r.nota;
     const globo = burbuja("bot", r.respuesta, r.sugeridos);
     estado.historial.push({ rol: "bot", texto: r.respuesta });
-    if (Array.isArray(r.pedido)) aplicarPedidoDelBot(r.pedido, globo);
+    if (r.metodoPago) elegirPago(r.metodoPago, true);
+    if (!r.enviarPedido && /c[oó]mo vas a pagar/i.test(r.respuesta) && estado.pagos.length) {
+      const opciones = elemento("div", "sugeridos");
+      estado.pagos.forEach(m => {
+        const b = elemento("button", "", `${m.icono} ${m.nombre}`);
+        b.type = "button";
+        b.onclick = () => { opciones.remove(); preguntar(`Pago con ${m.id}`); };
+        opciones.appendChild(b);
+      });
+      globo.appendChild(opciones);
+    }
+    if (Array.isArray(r.pedido)) aplicarPedidoDelBot(r.pedido, globo, r.enviarPedido);
     decirEnGlobo(r.sugeridos && r.sugeridos.length ? "Toca un botón naranja y te lo agrego." : "¿Algo más?");
     hablar(r.respuesta);
+    if (r.enviarPedido) {
+      const enviado = await enviarPedido(true);
+      if (!enviado && estado.carrito.size > 0) {
+        burbuja("bot", estado.metodoPago ? "No pude enviarlo, revisa tu pedido y toca «Enviar solicitud al mesero»." : "Antes de enviarlo, elige cómo vas a pagar.");
+      }
+    }
   } catch (e) {
     espera.textContent = e.message;
     ponerPlati("reposo");
@@ -1017,7 +1129,7 @@ async function preguntar(texto, porVoz) {
   }
 }
 
-function aplicarPedidoDelBot(pedido, globo) {
+function aplicarPedidoDelBot(pedido, globo, seEnvia) {
   const antes = new Map(Array.from(estado.carrito.entries()).map(([id, l]) => [id, { ...l }]));
   const nuevo = new Map();
   pedido.forEach(item => {
@@ -1044,7 +1156,7 @@ function aplicarPedidoDelBot(pedido, globo) {
     avisar("Dejé tu pedido como estaba");
   };
   acciones.append(ver, deshacer);
-  globo.appendChild(acciones);
+  if (!seEnvia) globo.appendChild(acciones);
   $("chat").scrollTop = $("chat").scrollHeight;
 }
 
@@ -1080,7 +1192,7 @@ function iniciar() {
   $("estadoPedido").onclick = abrirBeeper;
   $("cerrarBeeper").onclick = cerrarBeeper;
   $("yaLoRecogi").onclick = yaLoRecogi;
-  $("activarAvisos").onclick = activarAvisos;
+  $("activarAvisos").onclick = () => activarAvisos(false);
   $("pantallaEncendida").onclick = alternarPantalla;
   $("probarBeeper").onclick = () => { prepararSonido(); vibrar([600, 200, 600]); pitar(); };
   document.addEventListener("visibilitychange", () => {
@@ -1093,7 +1205,7 @@ function iniciar() {
   $("abrirBot").onclick = () => abrir("hojaBot");
   $("capa").onclick = cerrarTodo;
   document.querySelectorAll("[data-cerrar]").forEach(b => b.onclick = cerrarTodo);
-  $("enviarPedido").onclick = enviarPedido;
+  $("enviarPedido").onclick = () => enviarPedido(false);
   document.querySelectorAll(".atajos button").forEach(b => b.onclick = () => preguntar(b.textContent));
   $("formBot").onsubmit = e => {
     e.preventDefault();
@@ -1107,6 +1219,8 @@ function iniciar() {
   pintarMesa();
   actualizarCarrito();
   cargarMenu();
+  cargarPagos();
+  $("beeperPago").textContent = estado.pedidoActivo ? leerTexto("kdsPagoPedido") : "";
   if (!estado.mesa) abrir("hojaMesa");
   if (estado.pedidoActivo) { abrirBeeper(); revisarEstado(); }
   setInterval(revisarEstado, 4000);

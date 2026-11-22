@@ -23,6 +23,9 @@ namespace KDS.PRE.Portal
         private readonly object candadoArchivo = new();
         private ClavesVapid? vapid;
         private MensajeroPush? mensajero;
+        private readonly ConcurrentDictionary<int, byte> recordando = new();
+
+        private static readonly TimeSpan[] Recordatorios = { TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(4), TimeSpan.FromMinutes(7) };
 
         public BeeperService(string? carpetaDatos = null)
         {
@@ -82,6 +85,55 @@ namespace KDS.PRE.Portal
             }
 
             string contenido = JsonSerializer.Serialize(new { aviso.titulo, aviso.cuerpo, aviso.tipo, pedido = idPedido, url = "/" });
+            await EnviarATodosAsync(lista, contenido);
+
+            if (estado == "Rechazado" && suscripciones.TryRemove(idPedido, out _)) GuardarSuscripciones();
+
+            if (estado == "Listo" && recordando.TryAdd(idPedido, 0))
+                _ = RecordarListoAsync(idPedido);
+        }
+
+        private async Task RecordarListoAsync(int idPedido)
+        {
+            try
+            {
+                var espera = TimeSpan.Zero;
+                foreach (var momento in Recordatorios)
+                {
+                    await Task.Delay(momento - espera);
+                    espera = momento;
+
+                    if (mensajero == null || !suscripciones.TryGetValue(idPedido, out var lista)) return;
+
+                    string? estado;
+                    try { estado = KDS.PRE.Vistas.KdsDatosService.ObtenerEstadoPedido(idPedido); }
+                    catch (Exception) { estado = "Listo"; }
+                    if (estado != "Listo") return;
+
+                    string contenido = JsonSerializer.Serialize(new
+                    {
+                        titulo = "⏰ Tu pedido te está esperando",
+                        cuerpo = $"Pedido #{idPedido} sigue listo. Acércate a recogerlo antes de que se enfríe.",
+                        tipo = "listo",
+                        pedido = idPedido,
+                        url = "/"
+                    });
+                    await EnviarATodosAsync(lista, contenido);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Recordatorio del beeper: " + ex.Message);
+            }
+            finally
+            {
+                recordando.TryRemove(idPedido, out _);
+            }
+        }
+
+        private async Task EnviarATodosAsync(List<SuscripcionBeeper> lista, string contenido)
+        {
+            if (mensajero == null) return;
 
             SuscripcionBeeper[] destinos;
             lock (lista) destinos = lista.ToArray();
@@ -103,17 +155,11 @@ namespace KDS.PRE.Portal
                 }
             }
 
-            bool terminado = estado == "Rechazado";
-            if (terminado)
-            {
-                suscripciones.TryRemove(idPedido, out _);
-            }
-            else if (vencidas.Count > 0)
+            if (vencidas.Count > 0)
             {
                 lock (lista) lista.RemoveAll(s => vencidas.Contains(s.Endpoint));
+                GuardarSuscripciones();
             }
-
-            if (terminado || vencidas.Count > 0) GuardarSuscripciones();
         }
 
         public void Olvidar(int idPedido)

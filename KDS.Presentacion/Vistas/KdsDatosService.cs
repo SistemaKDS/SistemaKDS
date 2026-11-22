@@ -39,6 +39,9 @@ namespace KDS.PRE.Vistas
         public DateTime FechaHora { get; set; } = DateTime.Now;
         public string Estado { get; set; } = "Pendiente";
         public bool NotificadoVoz { get; set; }
+        public string? MetodoPago { get; set; }
+        public string EstadoPago { get; set; } = "Pendiente";
+        public string? ReferenciaPago { get; set; }
         public List<DetallePedidoModel> Detalles { get; set; } = new();
         public int MinutosEspera => Math.Max(0, (int)(DateTime.Now - FechaHora).TotalMinutes);
     }
@@ -224,8 +227,8 @@ namespace KDS.PRE.Vistas
             try
             {
                 const string sqlPedido = @"
-                    INSERT INTO pedidos (numero_mesa, fecha_hora, estado, notificado_voz)
-                    VALUES (@mesa, @fecha, @estado, @notificado)
+                    INSERT INTO pedidos (numero_mesa, fecha_hora, estado, notificado_voz, metodo_pago, estado_pago, referencia_pago)
+                    VALUES (@mesa, @fecha, @estado, @notificado, @metodo, @estadoPago, @referencia)
                     RETURNING id_pedido;";
 
                 int idGenerado;
@@ -235,6 +238,11 @@ namespace KDS.PRE.Vistas
                     cmd.Parameters.AddWithValue("@fecha", pedido.FechaHora);
                     cmd.Parameters.AddWithValue("@estado", string.IsNullOrEmpty(pedido.Estado) ? "Pendiente" : pedido.Estado);
                     cmd.Parameters.AddWithValue("@notificado", pedido.NotificadoVoz);
+                    cmd.Parameters.Add(new NpgsqlParameter("@metodo", NpgsqlTypes.NpgsqlDbType.Varchar)
+                        { Value = string.IsNullOrWhiteSpace(pedido.MetodoPago) ? DBNull.Value : pedido.MetodoPago });
+                    cmd.Parameters.AddWithValue("@estadoPago", string.IsNullOrEmpty(pedido.EstadoPago) ? "Pendiente" : pedido.EstadoPago);
+                    cmd.Parameters.Add(new NpgsqlParameter("@referencia", NpgsqlTypes.NpgsqlDbType.Varchar)
+                        { Value = string.IsNullOrWhiteSpace(pedido.ReferenciaPago) ? DBNull.Value : pedido.ReferenciaPago.Trim() });
                     idGenerado = Convert.ToInt32(cmd.ExecuteScalar());
                 }
 
@@ -287,6 +295,7 @@ namespace KDS.PRE.Vistas
 
             string sql = $@"
                 SELECT p.id_pedido, p.numero_mesa, p.fecha_hora, p.estado, p.notificado_voz,
+                       p.metodo_pago, p.estado_pago,
                        d.id_detalle, d.id_plato, pl.nombre AS nombre_plato, pl.precio, d.cantidad, d.notas_especiales
                 FROM pedidos p
                 INNER JOIN detalle_pedidos d ON p.id_pedido = d.id_pedido
@@ -308,7 +317,9 @@ namespace KDS.PRE.Vistas
                         NumeroMesa = Convert.ToInt32(dr["numero_mesa"]),
                         FechaHora = Convert.ToDateTime(dr["fecha_hora"]),
                         Estado = dr["estado"].ToString() ?? string.Empty,
-                        NotificadoVoz = Convert.ToBoolean(dr["notificado_voz"])
+                        NotificadoVoz = Convert.ToBoolean(dr["notificado_voz"]),
+                        MetodoPago = dr["metodo_pago"] is DBNull ? null : dr["metodo_pago"].ToString(),
+                        EstadoPago = dr["estado_pago"] is DBNull ? "Pendiente" : dr["estado_pago"].ToString() ?? "Pendiente"
                     };
                     pedidos[idPed] = ped;
                 }

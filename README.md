@@ -67,18 +67,43 @@ El asistente entiende cómo escribe la gente normalmente, con Claude y también 
 ## Flujo completo
 
 1. **Dueño:** en la pantalla del mesero, botón **ADMINISTRAR**. Pide la clave del dueño: la primera vez se crea ahí mismo y después siempre se pide, así los meseros no pueden cambiar platos ni precios. Tras 5 intentos fallidos hay que esperar 30 segundos. Se abre la ventana **Base de datos**:
-   - **Pedidos:** todos los pedidos guardados en `bd_kds`, también los que llegan del menú web, con filtro por estado. Se puede cambiar la mesa y el estado, agregar, editar o quitar productos y eliminar el pedido. La lista se refresca sola cada 5 segundos.
+   - **Pedidos:** todos los pedidos guardados en `bd_kds`, también los que llegan del menú web. Arriba salen los **totales**: cuántos pedidos y productos hay, cuánto suman las ventas, cuánto ya se cobró (y con qué método) y cuánto falta por cobrar. Se filtran por estado, periodo (hoy, últimos 7 días, este mes o todo), pago (pendiente o pagado) y mesa.
+     - **+ NUEVO PEDIDO:** se escribe la mesa, el estado y el pago, se elige el primer plato y se toca **CREAR PEDIDO**; después se le agregan más productos.
+     - Al seleccionar un pedido se cambia la mesa, el estado, el método de pago, si ya está pagado y la referencia del comprobante; se agregan, editan o quitan productos y se puede eliminar el pedido completo.
+     - La lista se refresca sola cada 5 segundos.
    - **Usuarios:** agregar, editar y eliminar meseros, cocineros y dueños (Admin). Siempre debe quedar al menos un Admin.
    - **Platos del menú:** se agregan, modifican o eliminan platos, y cada plato debe tener categoría **Comida**, **Bebida** o **Acompañamiento**. Con **Cambiar mi clave** el dueño pone una nueva. Si un plato ya tiene pedidos guardados, al eliminarlo queda como agotado para no dañar el historial. Lo que se cambie aquí sale en el menú web en menos de 30 segundos, sin reiniciar nada.
 2. **Cliente:** abre el menú web desde el sticker (`/?mesa=2`), arma su pedido, puede preguntarle al asistente y toca **Enviar solicitud al mesero**. El pedido queda en estado `Solicitado` y el cliente ve en su celular cuando lo aprueban, se prepara y está listo.
 3. **Mesero:** la solicitud aparece en el recuadro **Solicitudes del cliente**. Con **Aprobar y enviar a cocina** pasa a `Pendiente`; con **Rechazar** se borra.
 4. **Cocina:** a los 3 segundos aparece la tarjeta, se lee en voz alta y el chef la avanza a Preparando y Listo.
 
+## Métodos de pago
+
+En **Tu pedido** el cliente escoge cómo va a pagar antes de enviar la solicitud. Siempre salen **Efectivo** y **Tarjeta (datáfono)**; Nequi, Daviplata y transferencia salen solo si se configuran (en el cmd, una sola vez, y luego cerrar y abrir Visual Studio):
+
+```cmd
+setx KDS_PAGO_NEQUI "300 123 4567"
+setx KDS_PAGO_DAVIPLATA "300 123 4567"
+setx KDS_PAGO_TRANSFERENCIA "Bancolombia ahorros 123-456789-00 a nombre de Mi Restaurante (llave Bre-B @mirestaurante)"
+```
+
+- Con Nequi, Daviplata o transferencia el menú muestra a qué número enviar el dinero y deja escribir el número de la transacción; esa referencia llega a la ventana **Base de datos**.
+- El pedido queda con pago **Pendiente**. El dueño revisa que el dinero haya llegado y lo marca **Pagado** en la ventana **Base de datos**.
+- La página nunca pide números de tarjeta ni claves: la tarjeta se cobra con el datáfono en la mesa. Para cobrar con tarjeta desde el celular hace falta una pasarela (Wompi, Mercado Pago, ePayco), que exige cuenta de comercio.
+- El menú se abre por el link `https://` del túnel, así que lo que el cliente escribe viaja cifrado.
+
+## Plati hace el pedido por el cliente
+
+Además de armar el carrito, Plati puede **enviar el pedido** si el cliente se lo pide: "mándalo", "hazme el pedido", "eso es todo", o "sí" cuando Plati pregunta *¿Te lo envío al mesero?*. Si todavía no sabe cómo va a pagar, Plati lo pregunta y muestra botones con los métodos; también entiende "pago con nequi", "en efectivo" o "con tarjeta" en el mismo mensaje ("dame 2 hamburguesas y una gaseosa, pago en efectivo, mándalo"). El pedido llega al mesero como **Solicitado** igual que si el cliente tocara el botón, así que el mesero lo revisa antes de mandarlo a cocina. Funciona con Claude y también en el modo sin conexión.
+
 ## Beeper digital
 
 Cuando el cliente envía su pedido, el celular se convierte en un beeper como los de los restaurantes: muestra el número del pedido y los pasos (Enviado, Aprobado, En cocina, ¡Listo!). La persona se puede alejar de la mesa.
 
-- **Activar avisos en este celular:** pide permiso de notificaciones. Desde ahí, cuando el chef marca el pedido como **Listo**, le llega un mensaje al celular que vibra aunque tenga la pantalla bloqueada o el navegador cerrado. También avisa cuando el mesero lo aprueba, cuando entra a preparación y si lo rechaza.
+- **Avisos automáticos:** al tocar **Enviar solicitud al mesero**, el celular pide una sola vez permiso para notificaciones. Si el cliente acepta, desde ese pedido y los siguientes le llegan avisos sin tocar nada más.
+- **Recordatorios:** si el pedido sigue **Listo** y nadie lo ha recogido, el celular vuelve a vibrar a los 2, 4 y 7 minutos. La notificación trae el botón **✅ Ya lo recogí**, que detiene los recordatorios.
+- **Celular apagado o sin internet:** el aviso queda guardado hasta 24 horas en el servicio de notificaciones del celular (Google o Apple) y le llega en cuanto se prende o se conecta. Un celular apagado no puede vibrar en ese momento.
+- **Activar avisos en este celular:** el mismo permiso, por si el cliente no lo aceptó al enviar. Desde ahí, cuando el chef marca el pedido como **Listo**, le llega un mensaje al celular que vibra aunque tenga la pantalla bloqueada o el navegador cerrado. También avisa cuando el mesero lo aprueba, cuando entra a preparación y si lo rechaza.
 - **Con la página abierta:** el celular vibra y pita cada pocos segundos hasta que el cliente toca **Ya lo recogí**.
 - **Mantener pantalla encendida:** evita que el celular se bloquee mientras espera.
 - **Probar vibración:** para que el cliente revise que su celular sí vibra.

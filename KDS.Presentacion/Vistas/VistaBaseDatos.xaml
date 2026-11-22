@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="KDS — Base de datos" Icon="/Assets/logo-kdss.png"
-        Width="1180" Height="740" MinWidth="900" MinHeight="560"
+        Width="1280" Height="800" MinWidth="1000" MinHeight="600"
         WindowStartupLocation="CenterOwner" Background="#080808">
 
     <Window.Resources>
@@ -83,6 +83,20 @@
             <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="Padding" Value="16"/>
         </Style>
+        <Style x:Key="Tarjeta" TargetType="{x:Type Border}">
+            <Setter Property="Background" Value="#151515"/>
+            <Setter Property="BorderBrush" Value="#333333"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="Margin" Value="0,0,10,0"/>
+        </Style>
+        <Style x:Key="NumeroTarjeta" TargetType="{x:Type TextBlock}">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="22">
@@ -116,30 +130,86 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="16"/>
-                        <ColumnDefinition Width="340"/>
+                        <ColumnDefinition Width="360"/>
                     </Grid.ColumnDefinitions>
 
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                            <TextBlock Text="MOSTRAR" Style="{StaticResource Etiqueta}" Margin="0,0,10,0" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="CmbFiltroEstado" Width="170" Height="30" VerticalContentAlignment="Center"
-                                      SelectionChanged="CmbFiltroEstado_SelectionChanged"/>
-                            <TextBlock x:Name="TextoCantidadPedidos" Foreground="#888888" FontSize="12"
-                                       VerticalAlignment="Center" Margin="14,0,0,0"/>
-                        </StackPanel>
-                        <Border Grid.Row="1" BorderBrush="#333333" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="ESTADO" Style="{StaticResource Etiqueta}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="CmbFiltroEstado" Width="120" Height="30" VerticalContentAlignment="Center"
+                                          SelectionChanged="Filtro_SelectionChanged" Margin="0,0,14,0"/>
+                                <TextBlock Text="PERIODO" Style="{StaticResource Etiqueta}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="CmbFiltroPeriodo" Width="130" Height="30" VerticalContentAlignment="Center"
+                                          SelectionChanged="Filtro_SelectionChanged" Margin="0,0,14,0"/>
+                                <TextBlock Text="PAGO" Style="{StaticResource Etiqueta}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="CmbFiltroPago" Width="110" Height="30" VerticalContentAlignment="Center"
+                                          SelectionChanged="Filtro_SelectionChanged" Margin="0,0,14,0"/>
+                                <TextBlock Text="MESA" Style="{StaticResource Etiqueta}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                <TextBox x:Name="TxtFiltroMesa" Width="50" Height="30" MaxLength="2" VerticalContentAlignment="Center"
+                                         Background="#1A1A1A" Foreground="White" BorderBrush="#333333" Padding="6,0"
+                                         PreviewTextInput="SoloNumeros_PreviewTextInput" TextChanged="TxtFiltroMesa_TextChanged"/>
+                            </WrapPanel>
+                            <Button Grid.Column="1" Content="+ NUEVO PEDIDO" Click="BtnNuevoPedido_Click" Style="{StaticResource Boton}"
+                                    Background="#F5A623" BorderBrush="#F5A623" Foreground="#111111" Padding="16,0" Height="34"/>
+                        </Grid>
+
+                        <Grid Grid.Row="1" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource Tarjeta}">
+                                <StackPanel>
+                                    <TextBlock Text="PEDIDOS TOTALES" Style="{StaticResource Etiqueta}" Margin="0"/>
+                                    <TextBlock x:Name="TotalPedidos" Text="0" Style="{StaticResource NumeroTarjeta}"/>
+                                    <TextBlock x:Name="TotalUnidades" Text="0 productos" Foreground="#888888" FontSize="11"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="1" Style="{StaticResource Tarjeta}">
+                                <StackPanel>
+                                    <TextBlock Text="VENTAS" Style="{StaticResource Etiqueta}" Margin="0"/>
+                                    <TextBlock x:Name="TotalVentas" Text="$ 0" Style="{StaticResource NumeroTarjeta}" Foreground="#F5A623"/>
+                                    <TextBlock x:Name="TotalPromedio" Text="Promedio $ 0" Foreground="#888888" FontSize="11"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="2" Style="{StaticResource Tarjeta}">
+                                <StackPanel>
+                                    <TextBlock Text="COBRADO" Style="{StaticResource Etiqueta}" Margin="0"/>
+                                    <TextBlock x:Name="TotalCobrado" Text="$ 0" Style="{StaticResource NumeroTarjeta}" Foreground="#39D98A"/>
+                                    <TextBlock x:Name="TotalPorMetodo" Text="—" Foreground="#888888" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Grid.Column="3" Style="{StaticResource Tarjeta}" Margin="0">
+                                <StackPanel>
+                                    <TextBlock Text="POR COBRAR" Style="{StaticResource Etiqueta}" Margin="0"/>
+                                    <TextBlock x:Name="TotalPorCobrar" Text="$ 0" Style="{StaticResource NumeroTarjeta}" Foreground="#FF6464"/>
+                                    <TextBlock x:Name="TotalPorEstado" Text="—" Foreground="#888888" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <Border Grid.Row="2" BorderBrush="#333333" BorderThickness="1" CornerRadius="10" ClipToBounds="True">
                             <DataGrid x:Name="GrillaPedidos" SelectionChanged="GrillaPedidos_SelectionChanged">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="#" Binding="{Binding IdPedido}" Width="60"/>
-                                    <DataGridTextColumn Header="MESA" Binding="{Binding NumeroMesa}" Width="60"/>
-                                    <DataGridTextColumn Header="FECHA" Binding="{Binding FechaHora, StringFormat='dd/MM HH:mm'}" Width="100"/>
-                                    <DataGridTextColumn Header="ESTADO" Binding="{Binding Estado}" Width="100"/>
+                                    <DataGridTextColumn Header="#" Binding="{Binding IdPedido}" Width="55"/>
+                                    <DataGridTextColumn Header="MESA" Binding="{Binding NumeroMesa}" Width="55"/>
+                                    <DataGridTextColumn Header="FECHA" Binding="{Binding FechaHora, StringFormat='dd/MM HH:mm'}" Width="95"/>
+                                    <DataGridTextColumn Header="ESTADO" Binding="{Binding Estado}" Width="95"/>
                                     <DataGridTextColumn Header="PRODUCTOS" Binding="{Binding Productos}" Width="*"/>
-                                    <DataGridTextColumn Header="TOTAL" Binding="{Binding Total, StringFormat='$ {0:N0}', ConverterCulture=es-CO}" Width="100"/>
+                                    <DataGridTextColumn Header="PAGO" Binding="{Binding Pago}" Width="150"/>
+                                    <DataGridTextColumn Header="TOTAL" Binding="{Binding Total, StringFormat='$ {0:N0}', ConverterCulture=es-CO}" Width="95"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Border>
@@ -167,7 +237,25 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <Grid Margin="0,12,0,0">
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="MÉTODO DE PAGO" Style="{StaticResource Etiqueta}"/>
+                                        <ComboBox x:Name="CmbMetodoPago" Height="34" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="¿PAGADO?" Style="{StaticResource Etiqueta}"/>
+                                        <ComboBox x:Name="CmbEstadoPago" Height="34" VerticalContentAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="REFERENCIA / COMPROBANTE" Style="{StaticResource Etiqueta}"/>
+                                <TextBox x:Name="TxtReferenciaPago" Style="{StaticResource Campo}" MaxLength="60"/>
+
+                                <Grid x:Name="BotonesPedido" Margin="0,12,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="8"/>
@@ -178,9 +266,11 @@
                                     <Button x:Name="BtnEliminarPedido" Grid.Column="2" Content="ELIMINAR PEDIDO" Click="BtnEliminarPedido_Click"
                                             Style="{StaticResource Boton}" Foreground="#FF6464" IsEnabled="False"/>
                                 </Grid>
+                                <TextBlock x:Name="AyudaNuevoPedido" Visibility="Collapsed" Foreground="#F5A623" FontSize="11" TextWrapping="Wrap" Margin="0,12,0,0"
+                                           Text="Escribe la mesa, el estado y el pago; abajo elige el primer plato con su cantidad y toca CREAR PEDIDO. Después le puedes agregar más productos."/>
 
-                                <TextBlock Text="PRODUCTOS DEL PEDIDO" Style="{StaticResource Etiqueta}" Margin="0,18,0,6"/>
-                                <Border BorderBrush="#333333" BorderThickness="1" CornerRadius="8" ClipToBounds="True" Height="150">
+                                <TextBlock x:Name="EtiquetaDetalle" Text="PRODUCTOS DEL PEDIDO" Style="{StaticResource Etiqueta}" Margin="0,18,0,6"/>
+                                <Border x:Name="CajaDetalle" BorderBrush="#333333" BorderThickness="1" CornerRadius="8" ClipToBounds="True" Height="150">
                                     <DataGrid x:Name="GrillaDetalle" SelectionChanged="GrillaDetalle_SelectionChanged" FontSize="12" RowHeight="28">
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="CANT." Binding="{Binding Cantidad}" Width="55"/>
@@ -210,9 +300,13 @@
                                 <TextBlock Text="PLATO (PARA AGREGAR)" Style="{StaticResource Etiqueta}"/>
                                 <ComboBox x:Name="CmbPlato" Height="34" DisplayMemberPath="Nombre" VerticalContentAlignment="Center"/>
 
+                                <Button x:Name="BtnCrearPedido" Content="CREAR PEDIDO" Click="BtnCrearPedido_Click" Visibility="Collapsed"
+                                        Style="{StaticResource Boton}" Background="#F5A623" BorderBrush="#F5A623" Foreground="#111111" Margin="0,12,0,0"/>
+                                <Button x:Name="BtnCancelarNuevo" Content="CANCELAR" Click="BtnCancelarNuevo_Click" Visibility="Collapsed"
+                                        Style="{StaticResource Boton}" Margin="0,8,0,0"/>
                                 <Button x:Name="BtnAgregarProducto" Content="AGREGAR PRODUCTO" Click="BtnAgregarProducto_Click"
                                         Style="{StaticResource Boton}" Margin="0,12,0,0" IsEnabled="False"/>
-                                <Grid Margin="0,8,0,0">
+                                <Grid x:Name="BotonesProducto" Margin="0,8,0,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="8"/>
