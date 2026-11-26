@@ -1,0 +1,12 @@
+01|¿Cansado de esperar con un localizador en la mano, sin saber cuándo estará tu pedido?
+02|Mientras tanto, en la cocina, los papelitos se acumulan, los pedidos se pierden, y alguien se queda sin su comida.
+03|Y cuando por fin llega, viene con cebolla... aunque pediste sin cebolla.
+04|¡Tranquilo, esto tiene solución! Hola, soy Plati, la papa asistente de Mesa Link.
+05|Primero: acerca tu celular al sticker ene efe ce de la mesa, o escanea el código cu erre. El menú se abre solo, sin descargar nada.
+06|Segundo: pídeme lo que quieras, como hablas tú. Por ejemplo: tengo treinta lucas, algo para comer y tomar, sin cebolla.
+07|Yo te recomiendo, sumo el total y le aviso a la cocina que va sin cebolla. Y cuando me digas "mándalo", hago el pedido por ti.
+08|Tercero: paga como quieras. En efectivo, con tarjeta en el datáfono, Nequi, Daviplata o transferencia. Nunca te pedimos datos de tu tarjeta.
+09|Cuarto: el mesero aprueba tu pedido, y la cocina lo escucha en voz alta al instante. Se acabaron los papelitos perdidos.
+10|Quinto: cuando tu pedido está listo, tu celular vibra y te avisa, aunque esté bloqueado. Puedes moverte tranquilo.
+11|Y también ayudo al equipo: le digo a la cocina qué preparar primero, y al mesero cuánto debe cada mesa.
+12|Sin filas. Sin aparatos extra. Conecta tu mesa con Mesa Link.
